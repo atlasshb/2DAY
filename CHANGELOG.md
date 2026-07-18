@@ -9,6 +9,8 @@
 ### Application
 - Full Next.js 15 progressive web application port of prototype with five tabs and Fieldkit tokens
 - Live log flow with undo, PWA manifest, and offline Dexie outbox binding
+- Plan tab wired to planner API with on-device fallback pill
+- Nudge banner driven by the core field-brain arbitration
 
 ### Planner service
 - Fastify service implementing doc 09 routes (compile/replan/discover/health) over three-level engine
@@ -25,6 +27,7 @@
 - Canonical contracts for doorstep conversation recording with consent states and transcript segments
 - Analysis shape including outcome/confidence, evidence-grounded coaching tips, objection taxonomy, talk ratio
 - Structural privacy: audioRetained false on wire; audio deleted on-device after transcription
+- DE/TR/PL language packs (5-language detection, 7 fixtures)
 
 ### Testing & CI
 - Playwright E2E journey suite scaffolding with 13 canonical user stories (US-01..US-13)

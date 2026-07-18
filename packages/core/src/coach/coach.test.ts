@@ -9,12 +9,15 @@ import {
   conversationFixtures,
   createClaudeAnalyzer,
   createDeterministicAnalyzer,
+  deNotInterestedFixture,
   deterministicAnalyzer,
   detectLang,
   enFollowUpFixture,
   mixedLanguageBarrierFixture,
   nlNotInterestedFixture,
   nlSaleFixture,
+  plSaleFixture,
+  trFollowUpFixture,
   type ClaudeAnalysisPayload,
 } from "./index.js";
 import { analyzeConversationRequest, type ConversationMeta, type TranscriptSegment } from "../conversation.js";
@@ -84,6 +87,61 @@ describe("deterministicAnalyzer — fixtures", () => {
       const a = await deterministicAnalyzer.analyze(f.meta, f.transcript, f.context);
       expect(a.outcome, f.name).toBe(f.expectedOutcome);
     }
+  });
+});
+
+describe("deterministicAnalyzer — DE/TR/PL fixtures", () => {
+  it("DE not-interested: outcome + unhandled price objection, detected language de", async () => {
+    const a = await run(deNotInterestedFixture);
+    expect(a.outcome).toBe("not_interested");
+    expect(a.language).toBe("de");
+    const price = a.objections.find((o) => o.kind === "price");
+    expect(price).toBeDefined();
+    expect(price!.handled).toBe(false);
+    expect(price!.quote).toContain("teuer");
+    expect(a.improvements.some((t) => t.area === "objection_handling")).toBe(true);
+  });
+
+  it("TR follow-up: handled no_time objection, concrete return time, detected language tr", async () => {
+    const a = await run(trFollowUpFixture);
+    expect(a.outcome).toBe("follow_up");
+    expect(a.language).toBe("tr");
+    const noTime = a.objections.find((o) => o.kind === "no_time");
+    expect(noTime).toBeDefined();
+    expect(noTime!.handled).toBe(true);
+    expect(a.nextStep).toBeDefined();
+    expect(a.nextStep!).toContain("akşam");
+  });
+
+  it("PL sale: handled trust objection via the 'rozumiem' counter-signal, detected language pl", async () => {
+    const a = await run(plSaleFixture);
+    expect(a.outcome).toBe("sale");
+    expect(a.language).toBe("pl");
+    const trust = a.objections.find((o) => o.kind === "trust");
+    expect(trust).toBeDefined();
+    expect(trust!.handled).toBe(true);
+    expect(trust!.quote).toContain("oszustwo");
+  });
+
+  it("TR fixture yields an EN summary and an NL translatedSummary when repUiLanguage is nl", async () => {
+    const a = await run(trFollowUpFixture);
+    expect(trFollowUpFixture.context.repUiLanguage).toBe("nl");
+    expect(a.summary).toMatch(/^Outcome:/);
+    expect(a.translatedSummary).toBeDefined();
+    expect(a.translatedSummary!).toMatch(/^Uitkomst:/);
+    expect(a.summary).not.toBe(a.translatedSummary);
+  });
+
+  it("stopword vote also detects DE, TR, and PL for untagged text pulled from the new fixtures", () => {
+    expect(detectLang(deNotInterestedFixture.transcript[3]!.text, "en")).toBe("de");
+    expect(detectLang(trFollowUpFixture.transcript[3]!.text, "en")).toBe("tr");
+    expect(detectLang(plSaleFixture.transcript[3]!.text, "en")).toBe("pl");
+  });
+
+  it("identical inputs yield a deeply-equal analysis for a new fixture (PL sale)", async () => {
+    const a = await deterministicAnalyzer.analyze(plSaleFixture.meta, plSaleFixture.transcript, plSaleFixture.context);
+    const b = await deterministicAnalyzer.analyze(plSaleFixture.meta, plSaleFixture.transcript, plSaleFixture.context);
+    expect(a).toEqual(b);
   });
 });
 

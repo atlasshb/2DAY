@@ -9,18 +9,15 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
-import type { ConversationAnalysis, VisitOutcome } from "@2day/core";
+import type { ConversationAnalysis, NudgePriority, VisitOutcome } from "@2day/core";
 import {
   initialDayStats,
   logStreet,
-  rainNudge as rainNudgeContent,
-  trainNudge as trainNudgeContent,
   SALE_VALUE_EUR,
   type DayStats,
 } from "./mock";
@@ -34,12 +31,15 @@ interface LastAction {
   doorIdx: number;
 }
 
-interface NudgeState {
+export interface NudgeState {
   kind: "rain" | "train";
   title: string;
   body: string;
   act: string;
+  /** Amber caution accent — per-rule styling carried in the nudge copy table. */
   warn: boolean;
+  /** The originating core rule's priority tier, surfaced from nextNudge(). */
+  priority?: NudgePriority;
 }
 
 interface AddrState {
@@ -71,8 +71,12 @@ interface StoreValue {
 
   nudge: NudgeState | null;
   nudgeShow: boolean;
+  /** Surface an engine-produced nudge (called by the field brain, lib/nudges.ts). */
+  pushNudge: (nudge: NudgeState) => void;
   dismissNudge: () => void;
   requestTrainNudge: () => void;
+  /** True once the Route tab has been entered — arms the train nudge trigger. */
+  trainArmed: boolean;
 
   rainReplanned: boolean;
 
@@ -90,8 +94,6 @@ const StoreContext = createContext<StoreValue | null>(null);
 
 const NUDGE_AUTO_DISMISS_MS = 9000;
 const SNACKBAR_AUTO_DISMISS_MS = 5000;
-const RAIN_NUDGE_DELAY_MS = 5000;
-const TRAIN_NUDGE_DELAY_MS = 2600;
 
 function addrMeta(doorIdx: number, total: number): string {
   return `${logStreet.meta} · door ${doorIdx} of ${total}`;
@@ -115,14 +117,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const [nudge, setNudge] = useState<NudgeState | null>(null);
   const [nudgeShow, setNudgeShow] = useState(false);
+  const [trainArmed, setTrainArmed] = useState(false);
   const nudgeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const trainNudgeRequested = useRef(false);
 
   const toggleMode = useCallback(() => {
     setMode((m) => (m === "night" ? "sun" : "night"));
   }, []);
 
-  const showNudge = useCallback((n: NudgeState) => {
+  // Surface an engine-produced nudge. All nudge *scheduling* now lives in the
+  // field brain (lib/nudges.ts, driven by @2day/core's nextNudge); the store
+  // just holds what's currently shown plus the 9s auto-hide.
+  const pushNudge = useCallback((n: NudgeState) => {
     setNudge(n);
     setNudgeShow(true);
     if (nudgeTimer.current) clearTimeout(nudgeTimer.current);
@@ -137,23 +142,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // Route-tab entry arms the train nudge (once, idempotent). The field brain
+  // reads `trainArmed`; ~2.6s later the catch_train rule fires via nextNudge.
   const requestTrainNudge = useCallback(() => {
-    if (trainNudgeRequested.current) return;
-    trainNudgeRequested.current = true;
-    const t = setTimeout(() => {
-      showNudge({ kind: "train", ...trainNudgeContent });
-    }, TRAIN_NUDGE_DELAY_MS);
-    return () => clearTimeout(t);
-  }, [showNudge]);
-
-  // Rain nudge fires once, ~5s after the app loads — mirrors the prototype's
-  // unconditional setTimeout(showNudge, 5000).
-  useEffect(() => {
-    const t = setTimeout(() => {
-      showNudge({ kind: "rain", ...rainNudgeContent });
-    }, RAIN_NUDGE_DELAY_MS);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setTrainArmed(true);
   }, []);
 
   const goPrevDoor = useCallback(() => {
@@ -249,8 +241,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       acceptPlan,
       nudge,
       nudgeShow,
+      pushNudge,
       dismissNudge,
       requestTrainNudge,
+      trainArmed,
       rainReplanned,
       recording,
       setRecording,
@@ -273,8 +267,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       acceptPlan,
       nudge,
       nudgeShow,
+      pushNudge,
       dismissNudge,
       requestTrainNudge,
+      trainArmed,
       rainReplanned,
       recording,
       lastAnalysis,

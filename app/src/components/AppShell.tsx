@@ -7,11 +7,15 @@ import { TabBar } from "@/components/TabBar";
 import { NudgeBanner } from "@/components/NudgeBanner";
 import { Snackbar } from "@/components/Snackbar";
 import { useStore } from "@/lib/store";
+import { useFieldBrain } from "@/lib/nudges";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { mode } = useStore();
   const pathname = usePathname();
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // Drive the on-device field brain (@2day/core rules → nudge banner).
+  useFieldBrain();
 
   // Reset scroll position on tab change, mirroring the prototype's go()
   // which does `$('content').scrollTop = 0` on every screen switch.

@@ -20,7 +20,7 @@ language, without the audio ever leaving the phone.
 ## The working product
 
 This is a running monorepo, not a spec. Screenshots below are captured from the **production
-build** of the real app (`assets/screens-app/`):
+build** of the real app (`assets/screens-app/`). The Plan tab wires to the live planner API with an honest on-device fallback; nudges are driven by the real 15-rule field brain.
 
 | Today | Plan → compiled | Route | Log |
 |---|---|---|---|
@@ -65,7 +65,7 @@ Tap **Record** on the Log screen, choose your consent state, talk. The moment yo
 - **Objections** with the resident's verbatim words — and whether you handled them
 - **Coaching**: what went well, what to improve, grounded in the actual transcript
 - **Talk ratio & questions asked** (the doorstep health metrics)
-- **Multi-language**: per-segment detection (NL/EN first); summary translated to your UI language
+- **Multi-language**: NL · EN · DE · TR · PL per-segment detection; summary translated to your UI language
 - **Follow-ups** extract the concrete next step ("come back after 7 — my wife decides")
 
 **Privacy is structural, not a promise** ([doc 21](docs/21-conversation-intelligence.md)):
@@ -80,7 +80,7 @@ The Playwright suite drives the production build through the **13 user stories**
 [`e2e/user-stories.md`](e2e/user-stories.md) — open app mid-shift, compile a day, accept, follow
 the route, one-tap log with undo, record a conversation in another language, log the analyzed
 outcome, flip to sunlight mode, install as PWA, accessibility floor (48 px targets). CI runs
-typecheck + 48 unit tests + build + the journey suite on every push.
+typecheck + 54 unit tests + build + the journey suite on every push.
 
 ## How it thinks
 

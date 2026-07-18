@@ -4,8 +4,8 @@
 
 | Layer | Scope | Coverage |
 |---|---|---|
-| Unit: Core | Sync (batch/dedup/merge), Fieldbrain nudges (15 rules + cooldowns), Coach analysis (fixtures/determinism/language) | Event deduplication and idempotency; nudge priority arbitration and per-rule/per-street cooldowns; conversation outcome classification; objection handling; language detection and fallback |
-| Unit: Planner | Plan compilation (6 scenarios), replan (rain re-order), L3 routing, area discovery, validation | Monotonic leg sequencing; gym drop/pickup ordering; rain exposure re-ranking; street selection under budget; error taxonomy |
+| Unit: Core | Sync (batch/dedup/merge), Fieldbrain nudges (15 rules + cooldowns), Coach analysis (fixtures/determinism/language) | 41 tests: event deduplication and idempotency; nudge priority arbitration and per-rule/per-street cooldowns; conversation outcome classification; objection handling; language detection and fallback |
+| Unit: Planner | Plan compilation (6 scenarios), replan (rain re-order), L3 routing, area discovery, validation | 13 tests: monotonic leg sequencing; gym drop/pickup ordering; rain exposure re-ranking; street selection under budget; error taxonomy |
 | E2E: Playwright | 13 user journeys on production build (390×844 phone viewport, headless, fake microphone) | Today/alerts (US-01,05), Plan/Route (US-02,03), Log (US-04), Sun mode (US-06), Stats (US-07), Record/Analyze (US-08,09,10), Shell/PWA/a11y (US-11,12,13) |
 
 ## Commands

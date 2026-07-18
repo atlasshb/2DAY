@@ -11,10 +11,13 @@
  * conversation's own end instant (`meta.startedAt + meta.durationMs`) and the analysis
  * `id` is a ULID derived deterministically from it — identical inputs, identical output.
  *
- * Summaries are composed bilingually from per-language templates (not free-translated):
- * the same structured facts render into an NL and an EN sentence. `translatedSummary`
- * is the rep-UI-language rendering when it differs from the detected language — an
- * honest, offline "template translation", documented as such in docs/21.
+ * Summaries are composed from per-language templates (not free-translated): the same
+ * structured facts render into an NL, EN, or DE sentence depending on the detected
+ * language. Conversations detected in a non-templated language (TR, PL, ...) render
+ * their `summary` in EN (the template fallback). `translatedSummary` is the
+ * rep-UI-language rendering — see the routing comment above its assignment below for
+ * the exact NL/EN/DE-vs-other rule — an honest, offline "template translation",
+ * documented as such in docs/21.
  */
 import type {
   CoachingTip,
@@ -221,7 +224,7 @@ function extractNextStep(
 // Localization: summary + tip/well strings composed per-language (docs/21)
 // ---------------------------------------------------------------------------
 
-const KIND_LABEL: Record<"nl" | "en", Record<ObjectionKind, string>> = {
+const KIND_LABEL: Record<"nl" | "en" | "de", Record<ObjectionKind, string>> = {
   nl: {
     price: "prijs",
     trust: "vertrouwen",
@@ -242,11 +245,22 @@ const KIND_LABEL: Record<"nl" | "en", Record<ObjectionKind, string>> = {
     bad_experience: "past experience",
     other: "other",
   },
+  de: {
+    price: "Preis",
+    trust: "Vertrauen",
+    no_time: "Zeitmangel",
+    already_has_provider: "bestehender Anbieter",
+    not_decision_maker: "Entscheidungsträger",
+    language_barrier: "Sprachbarriere",
+    bad_experience: "frühere Erfahrung",
+    other: "sonstiges",
+  },
 };
 
-const OUTCOME_WORD: Record<"nl" | "en", Record<Outcome, string>> = {
+const OUTCOME_WORD: Record<"nl" | "en" | "de", Record<Outcome, string>> = {
   nl: { sale: "verkoop", not_interested: "geen interesse", follow_up: "vervolgafspraak", conversation: "gesprek" },
   en: { sale: "sale", not_interested: "not interested", follow_up: "follow-up", conversation: "conversation" },
+  de: { sale: "Verkauf", not_interested: "kein Interesse", follow_up: "Folgetermin", conversation: "Gespräch" },
 };
 
 interface SummaryFacts {
@@ -259,8 +273,10 @@ interface SummaryFacts {
   nextStep?: string;
 }
 
-function tmplLang(lang: string): "nl" | "en" {
-  return lang === "nl" ? "nl" : "en"; // MVP: NL + EN templates; others render EN.
+function tmplLang(lang: string): "nl" | "en" | "de" {
+  if (lang === "nl") return "nl";
+  if (lang === "de") return "de";
+  return "en"; // MVP: NL + EN + DE templates; TR/PL/other detected languages render in EN.
 }
 
 function composeSummary(lang: string, f: SummaryFacts): string {
@@ -276,6 +292,15 @@ function composeSummary(lang: string, f: SummaryFacts): string {
     const next = f.nextStep ? ` Vervolgstap: ${f.nextStep}.` : "";
     return `Uitkomst: ${outcome} (${conf}% zekerheid). ${obj} U sprak ${f.talkPct}% van de tijd en stelde ${q}.${next}`;
   }
+  if (L === "de") {
+    const obj =
+      f.objectionCount === 0
+        ? "Keine Einwände."
+        : `${f.objectionCount} Einwand/Einwände, ${f.handledCount} behandelt.`;
+    const q = f.questionsAsked === 1 ? "1 Frage" : `${f.questionsAsked} Fragen`;
+    const next = f.nextStep ? ` Nächster Schritt: ${f.nextStep}.` : "";
+    return `Ergebnis: ${outcome} (${conf}% Sicherheit). ${obj} Sie sprachen ${f.talkPct}% der Zeit und stellten ${q}.${next}`;
+  }
   const obj =
     f.objectionCount === 0
       ? "No objections raised."
@@ -287,28 +312,27 @@ function composeSummary(lang: string, f: SummaryFacts): string {
 
 function tipText(lang: string, key: string, arg?: string | number): string {
   const L = tmplLang(lang);
-  const nl = L === "nl";
   switch (key) {
     case "talk_ratio":
-      return nl
-        ? `U voerde ${arg}% van het gesprek — stel meer open vragen en laat de bewoner praten.`
-        : `You did ${arg}% of the talking — ask more open questions and let the resident speak.`;
+      if (L === "nl") return `U voerde ${arg}% van het gesprek — stel meer open vragen en laat de bewoner praten.`;
+      if (L === "de") return `Sie haben ${arg}% des Gesprächs geführt — stellen Sie mehr offene Fragen und lassen Sie den Bewohner sprechen.`;
+      return `You did ${arg}% of the talking — ask more open questions and let the resident speak.`;
     case "no_questions":
-      return nl
-        ? "Er zijn geen vragen gesteld — begin met een ontdekkingsvraag om de behoefte te vinden."
-        : "No questions were asked — open with a discovery question to surface the need.";
+      if (L === "nl") return "Er zijn geen vragen gesteld — begin met een ontdekkingsvraag om de behoefte te vinden.";
+      if (L === "de") return "Es wurden keine Fragen gestellt — beginnen Sie mit einer Entdeckungsfrage, um den Bedarf zu ermitteln.";
+      return "No questions were asked — open with a discovery question to surface the need.";
     case "objection_unhandled":
-      return nl
-        ? `Het bezwaar "${arg}" bleef onbeantwoord — oefen een geruststellend weerwoord.`
-        : `The "${arg}" objection went unanswered — practice a reassuring response.`;
+      if (L === "nl") return `Het bezwaar "${arg}" bleef onbeantwoord — oefen een geruststellend weerwoord.`;
+      if (L === "de") return `Der Einwand "${arg}" blieb unbeantwortet — üben Sie eine beruhigende Antwort.`;
+      return `The "${arg}" objection went unanswered — practice a reassuring response.`;
     case "compliance_recap":
-      return nl
-        ? "Verkoop afgesloten zonder de prijs en voorwaarden te herhalen — vat ze altijd hardop samen."
-        : "Sale closed without recapping price and terms — always summarize them out loud.";
+      if (L === "nl") return "Verkoop afgesloten zonder de prijs en voorwaarden te herhalen — vat ze altijd hardop samen.";
+      if (L === "de") return "Verkauf abgeschlossen, ohne Preis und Bedingungen zu wiederholen — fassen Sie diese immer laut zusammen.";
+      return "Sale closed without recapping price and terms — always summarize them out loud.";
     case "opening_monologue":
-      return nl
-        ? `De opening duurde ~${arg}s als monoloog — houd het kort en stel snel een vraag.`
-        : `The opening ran ~${arg}s as a monologue — keep it short and ask a question early.`;
+      if (L === "nl") return `De opening duurde ~${arg}s als monoloog — houd het kort en stel snel een vraag.`;
+      if (L === "de") return `Die Eröffnung dauerte ~${arg}s als Monolog — halten Sie sie kurz und stellen Sie früh eine Frage.`;
+      return `The opening ran ~${arg}s as a monologue — keep it short and ask a question early.`;
     default:
       return "";
   }
@@ -316,18 +340,19 @@ function tipText(lang: string, key: string, arg?: string | number): string {
 
 function wellText(lang: string, key: string, arg?: string | number): string {
   const L = tmplLang(lang);
-  const nl = L === "nl";
   switch (key) {
     case "handled_objection":
-      return nl ? `Bezwaar over ${arg} goed weerlegd.` : `Handled the ${arg} objection well.`;
+      if (L === "nl") return `Bezwaar over ${arg} goed weerlegd.`;
+      if (L === "de") return `Einwand zu ${arg} gut entkräftet.`;
+      return `Handled the ${arg} objection well.`;
     case "balanced":
-      return nl
-        ? `Mooi in balans — u sprak ${arg}% van de tijd en luisterde net zoveel.`
-        : `Nicely balanced — you spoke ${arg}% of the time and listened as much.`;
+      if (L === "nl") return `Mooi in balans — u sprak ${arg}% van de tijd en luisterde net zoveel.`;
+      if (L === "de") return `Gut ausbalanciert — Sie sprachen ${arg}% der Zeit und hörten genauso viel zu.`;
+      return `Nicely balanced — you spoke ${arg}% of the time and listened as much.`;
     case "answered_questions":
-      return nl
-        ? "U beantwoordde de vragen van de bewoner."
-        : "You answered the resident's questions.";
+      if (L === "nl") return "U beantwoordde de vragen van de bewoner.";
+      if (L === "de") return "Sie haben die Fragen des Bewohners beantwortet.";
+      return "You answered the resident's questions.";
     default:
       return "";
   }
@@ -437,7 +462,21 @@ export function createDeterministicAnalyzer(
       };
       const summary = composeSummary(language, facts);
       const uiLang = primarySubtag(context.repUiLanguage);
-      const translatedSummary = uiLang !== language ? composeSummary(uiLang, facts) : undefined;
+      // translatedSummary routing (docs/21): NL/EN/DE are templated source languages —
+      // a conversation detected in one of them keeps the original rule unchanged: only
+      // surface translatedSummary when the rep's UI language actually renders
+      // differently (e.g. NL detected + NL UI ⇒ no translation needed). Any OTHER
+      // detected language (TR, PL, ...) has no template of its own, so `summary` above
+      // already fell back to the EN template (tmplLang's default branch) — for those,
+      // ALWAYS set translatedSummary whenever the rep's UI language is one we CAN
+      // render (nl/en/de), even when that happens to resolve to EN too, so the rep
+      // always gets an explicit rendering in their own UI language rather than being
+      // left to read the EN fallback with no acknowledgment it was translated.
+      const isTemplatedSource = language === "nl" || language === "en" || language === "de";
+      const uiIsTemplated = uiLang === "nl" || uiLang === "en" || uiLang === "de";
+      const translatedSummary = isTemplatedSource
+        ? (uiLang !== language ? composeSummary(uiLang, facts) : undefined)
+        : (uiIsTemplated ? composeSummary(uiLang, facts) : undefined);
 
       // --- id + timestamp (deterministic) ---------------------------------
       const analyzed = resolveAnalyzedAt(meta, opts.clock);

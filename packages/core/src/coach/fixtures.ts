@@ -4,11 +4,14 @@
  * tests / the app's demo mode. Every meta id is a valid ULID and every meta is
  * `audioRetained: false` (docs/17 — audio never leaves the device).
  *
- * The four cover the classifier's branches:
+ * The seven cover the classifier's branches:
  *   1. NL energy sale (14 segments, a handled price objection)
  *   2. NL not-interested (opening monologue)
  *   3. EN follow-up ("come back after 7, my wife decides")
  *   4. Mixed NL/EN language barrier (code-switching)
+ *   5. DE not-interested, an unhandled price objection ("zu teuer")
+ *   6. TR follow-up with a concrete return time ("akşam gelin")
+ *   7. PL sale, a handled trust objection (counter-signal "rozumiem")
  */
 import type {
   ConversationAnalysis,
@@ -149,9 +152,72 @@ export const mixedLanguageBarrierFixture: ConversationFixture = {
   expectedOutcome: "conversation",
 };
 
+// --- 5. DE not-interested, unhandled price objection ------------------------
+const deNotInterested = timeline([
+  ["rep", "Guten Tag! Ich bin Lukas von GreenPower. Haben Sie kurz Zeit?", 6, "de"],
+  ["resident", "Worum geht es denn?", 4, "de"],
+  ["rep", "Wir helfen Ihnen, günstiger auf Ökostrom umzusteigen. Was zahlen Sie derzeit im Monat?", 9, "de"],
+  ["resident", "Ehrlich gesagt, das ist mir zu teuer, das ganze Angebot.", 6, "de"],
+  ["rep", "Ach so, na gut. Vielen Dank für Ihre Zeit.", 5, "de"],
+  ["resident", "Nein danke, kein Interesse. Einen schönen Tag noch.", 5, "de"],
+  ["rep", "Alles klar, ebenfalls einen schönen Tag!", 4, "de"],
+]);
+
+export const deNotInterestedFixture: ConversationFixture = {
+  name: "de-not-interested",
+  meta: meta(vulid(15), "de", deNotInterested.durationMs),
+  transcript: deNotInterested.segments,
+  context: { campaignVertical: "energy", repUiLanguage: "nl" },
+  expectedOutcome: "not_interested",
+};
+
+// --- 6. TR follow-up, concrete return time ("akşam gelin") ------------------
+const trFollowUp = timeline([
+  ["rep", "İyi günler! Ben GreenPower'dan Emre. Birkaç dakikanız var mı?", 7, "tr"],
+  ["resident", "Şu anda biraz meşgulüm, başka zaman olur mu?", 5, "tr"],
+  ["rep", "Sorun değil, anlıyorum. Size kısaca bilgi vereyim mi?", 7, "tr"],
+  ["resident", "Tamam, akşam gelin, o zaman müsait olurum.", 6, "tr"],
+  ["rep", "Harika, o zaman akşam saatlerinde tekrar uğrarım. İyi günler!", 7, "tr"],
+]);
+
+export const trFollowUpFixture: ConversationFixture = {
+  name: "tr-follow-up",
+  meta: meta(vulid(16), "tr", trFollowUp.durationMs),
+  transcript: trFollowUp.segments,
+  context: { campaignVertical: "energy", repUiLanguage: "nl" },
+  expectedOutcome: "follow_up",
+};
+
+// --- 7. PL sale, handled trust objection (counter-signal "rozumiem") --------
+const plSale = timeline([
+  ["rep", "Dzień dobry! Jestem Marta z GreenPower. Czy ma Pani chwilę?", 7, "pl"],
+  ["resident", "Tak, o co chodzi?", 4, "pl"],
+  ["rep", "Pomagamy mieszkańcom przejść na tańszą zieloną energię. Ile płaci Pani teraz za prąd?", 9, "pl"],
+  ["resident", "Skąd mam wiedzieć, czy to nie jest oszustwo?", 6, "pl"],
+  ["rep", "Rozumiem Pani obawy, jesteśmy zarejestrowaną firmą i wszystko jest w umowie.", 9, "pl"],
+  ["resident", "Dobrze, to brzmi rozsądnie. Ile to kosztuje miesięcznie?", 6, "pl"],
+  ["rep", "Sto dwadzieścia złotych miesięcznie, bez zobowiązań, może Pani zrezygnować w każdej chwili.", 9, "pl"],
+  ["resident", "Dobrze, zgadzam się. Gdzie mam podpisać?", 5, "pl"],
+  ["rep", "Świetnie, potrzebuję jeszcze numer konta bankowego.", 6, "pl"],
+  ["resident", "Mój numer konta to PL61 1090 1014 0000 0712 1981 2874.", 7, "pl"],
+  ["rep", "Dziękuję, wszystko zapisane. Otrzyma Pani dziś potwierdzenie.", 6, "pl"],
+  ["resident", "Super, dziękuję!", 4, "pl"],
+]);
+
+export const plSaleFixture: ConversationFixture = {
+  name: "pl-sale",
+  meta: meta(vulid(17), "pl", plSale.durationMs),
+  transcript: plSale.segments,
+  context: { campaignVertical: "energy", repUiLanguage: "nl" },
+  expectedOutcome: "sale",
+};
+
 export const conversationFixtures: ConversationFixture[] = [
   nlSaleFixture,
   nlNotInterestedFixture,
   enFollowUpFixture,
   mixedLanguageBarrierFixture,
+  deNotInterestedFixture,
+  trFollowUpFixture,
+  plSaleFixture,
 ];

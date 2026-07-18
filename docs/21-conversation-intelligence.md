@@ -123,24 +123,27 @@ proportionate. Deleting the audio is the proportionality argument, in code.
 Dutch doorsteps code-switch. A single conversation in a Rotterdam or Eindhoven neighborhood may run
 NL → EN → back, and the resident may speak Turkish, Arabic, or Polish (doc 00 §4's demographics). The
 contracts assume this: `TranscriptSegment.lang` is **per-segment** BCP-47, and `ConversationMeta.language`
-is the dominant one.
+is the dominant one. The deterministic analyzer ships with **five language packs**: NL, EN, DE, TR, PL.
 
-- **Detection.** Production STT emits a language tag per segment. The MVP analyzer has a tiny
-  **stopword-vote fallback** (`detectLang`) for untagged text: it counts NL vs EN stopwords and picks the
-  higher, tie → the meta's language. It is intentionally small — a floor for untagged input, not a
-  language ID system.
+- **Detection.** Production STT emits a language tag per segment. The analyzer prefers **per-segment lang tags** from
+  the STT. For untagged text, a tiny **stopword-vote fallback** (`detectLang`) counts NL vs EN stopwords and picks the
+  higher; tie → the meta's language. It is intentionally small — a floor for untagged input, not a language ID system.
 - **Dominant language.** Computed by **summed segment duration** per language, not segment count, so a
   long English explanation outweighs a short Dutch greeting.
-- **Bilingual summary composition (honest translation).** The summary is **not free-translated.** It is
-  **composed from per-language templates** over the same structured facts (outcome, objection count,
-  talk ratio, questions). `composeSummary("nl", facts)` and `composeSummary("en", facts)` render the
-  same numbers into two languages. `translatedSummary` is populated when the rep's UI language differs
-  from the detected dominant language — e.g. a Dutch rep (UI `nl`) reviewing an English-dominant
-  conversation gets an NL rendering. We document this as **template translation**, not machine
-  translation: it cannot drift or hallucinate because there is no source-to-target text step, only facts
-  → templated sentence. Coaching tips and "what went well" strings are likewise emitted in the dominant
-  language from templates. Languages beyond NL/EN render the EN template in MVP; more templates are a data
-  change, not a code change.
+- **Summary templates & composition.** The summary is **composed from per-language templates** over the same structured facts
+  (outcome, objection count, talk ratio, questions), never free-translated. Templates exist for **NL, EN, DE**. For TR and PL,
+  the analyzer composes an EN summary and populates `translatedSummary` when the rep's UI language is in {NL, EN, DE},
+  rendering a template-derived translation. `translatedSummary` is also populated when the rep's UI language differs from the
+  detected dominant language in any other case (e.g., a Turkish-UI rep reviewing an NL-dominant conversation gets a TR rendering).
+  Coaching tips and "what went well" strings are emitted in the dominant language from templates.
+
+| Language | Signals | Objections | Counter-signals | Stopwords | Summary template |
+|---|---|---|---|---|---|
+| NL | ✓ | ✓ | ✓ | ✓ | NL |
+| EN | ✓ | ✓ | ✓ | ✓ | EN |
+| DE | ✓ | ✓ | ✓ | — | DE |
+| TR | ✓ | ✓ | ✓ | — | EN → TR |
+| PL | ✓ | ✓ | ✓ | — | EN → PL |
 
 ## 5. Two engines behind one seam
 
