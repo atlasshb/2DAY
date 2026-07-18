@@ -9,11 +9,13 @@
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
+    "test:e2e": "playwright test --config e2e/playwright.config.ts --pass-with-no-tests",
     "build": "npm run build --workspaces --if-present",
     "dev:app": "npm run dev -w @2day/app",
     "dev:planner": "npm run dev -w @2day/planner"
   },
   "devDependencies": {
+    "@playwright/test": "^1.50.0",
     "typescript": "^5.7.2"
   },
   "engines": {
