@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>2DAY — Field OS Prototype</title>
+<style>
+  /* ============ Fieldkit tokens ============ */
+  :root{
+    --desk:#06090D;
+    --sale:#22C55E; --convo:#3B82F6; --noans:#64748B; --notint:#F59E0B;
+    --dnk:#EF4444; --fup:#A855F7; --inacc:#475569;
+    --accent:#3B82F6; --warn:#F59E0B; --danger:#EF4444; --ok:#22C55E;
+  }
+  .app[data-mode="night"]{
+    --bg:#0B0F14; --surface:#151B23; --surface2:#1C2530; --ink:#E8EDF2;
+    --dim:#8FA0B3; --faint:#5B6B7D; --line:#243040; --chipbg:#1C2530;
+    --mapland:#101720; --mapblock:#1A2431; --mapstreet:#2A3848;
+  }
+  .app[data-mode="sun"]{
+    --bg:#FFFFFF; --surface:#F5F6F8; --surface2:#ECEEF2; --ink:#0B0F14;
+    --dim:#3D4A59; --faint:#5B6B7D; --line:#D7DDE5; --chipbg:#ECEEF2;
+    --mapland:#F2F4F7; --mapblock:#E2E6EC; --mapstreet:#C7CFD9;
+  }
+  *{box-sizing:border-box; margin:0; -webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:var(--desk);
+    font-family:-apple-system, "SF Pro Text", Inter, "Segoe UI", system-ui, sans-serif;
+    display:flex; align-items:stretch; justify-content:center;
+  }
+  /* ============ Phone frame ============ */
+  .app{
+    width:min(412px,100vw); height:100dvh; max-height:100dvh;
+    background:var(--bg); color:var(--ink);
+    display:flex; flex-direction:column; position:relative; overflow:hidden;
+    transition:background .25s ease, color .25s ease;
+  }
+  @media (min-width:520px){
+    body{align-items:center}
+    .app{height:min(880px,96vh); border-radius:34px; border:1px solid #1E2836;
+         box-shadow:0 30px 80px rgba(0,0,0,.55)}
+  }
+  button{font:inherit; color:inherit; background:none; border:none; cursor:pointer}
+  button:focus-visible, [tabindex]:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:8px}
+
+  /* ============ Status strip ============ */
+  .status{
+    display:flex; align-items:center; gap:8px; padding:14px 18px 8px;
+    font-size:13px; color:var(--dim); font-variant-numeric:tabular-nums;
+  }
+  .status .clock{font-weight:600; color:var(--ink); font-size:15px}
+  .status .sys{margin-left:auto; display:flex; align-items:center; gap:10px}
+  .dot{width:7px; height:7px; border-radius:50%; display:inline-block}
+  .sysitem{display:flex; align-items:center; gap:5px}
+  .modebtn{
+    padding:5px 12px; border-radius:999px; background:var(--chipbg);
+    border:1px solid var(--line); font-size:12px; font-weight:600; color:var(--ink);
+  }
+
+  /* ============ Content area ============ */
+  .content{flex:1; overflow-y:auto; overflow-x:hidden; padding:6px 18px 16px; scrollbar-width:none}
+  .content::-webkit-scrollbar{display:none}
+  .screen{display:none; flex-direction:column; gap:12px; animation:rise .2s ease-out}
+  .screen.active{display:flex}
+  @keyframes rise{from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none}}
+  @media (prefers-reduced-motion:reduce){ *{animation:none!important; transition:none!important} }
+
+  .card{background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 16px}
+  .cardtitle{font-size:13px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); margin-bottom:10px}
+  .h1{font-size:22px; font-weight:700; letter-spacing:-.01em}
+  .sub{font-size:15px; color:var(--dim)}
+  .pill{display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px;
+        font-size:13px; font-weight:600; background:var(--chipbg); border:1px solid var(--line)}
+
+  /* ============ Today ============ */
+  .hero{display:flex; flex-direction:column; gap:10px}
+  .heror{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+  .loc{font-size:17px; font-weight:700}
+  .weather{display:flex; align-items:baseline; gap:14px; font-variant-numeric:tabular-nums}
+  .temp{font-size:34px; font-weight:700; letter-spacing:-.02em}
+  .wmeta{font-size:14px; color:var(--dim)}
+  .rainpill{background:rgba(59,130,246,.14); border-color:rgba(59,130,246,.4); color:var(--accent)}
+  .hoursbar{margin-top:2px}
+  .hourslbl{display:flex; justify-content:space-between; font-size:13px; color:var(--dim); font-variant-numeric:tabular-nums; margin-bottom:6px}
+  .track{height:6px; border-radius:3px; background:var(--surface2); overflow:hidden}
+  .fill{height:100%; border-radius:3px; background:var(--accent); transition:width .4s ease}
+
+  .grid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px}
+  .stat{background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:12px 12px 10px}
+  .statv{font-size:26px; font-weight:700; letter-spacing:-.02em; font-variant-numeric:tabular-nums; line-height:1.1}
+  .statl{font-size:12px; color:var(--faint); font-weight:600; letter-spacing:.04em; text-transform:uppercase; margin-top:3px}
+  .spark{margin-top:6px; display:block}
+
+  .legrow{display:flex; align-items:center; gap:10px; padding:7px 0; font-size:15px}
+  .legrow .t{width:44px; color:var(--dim); font-variant-numeric:tabular-nums; font-size:13px; flex-shrink:0}
+  .legicon{width:26px; height:26px; border-radius:8px; background:var(--surface2); display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0}
+  .legrow.done{opacity:.45}
+  .legrow.now{font-weight:700}
+  .legrow.now .legicon{background:rgba(59,130,246,.18); box-shadow:0 0 0 1px var(--accent) inset}
+
+  .traincard{display:flex; align-items:center; gap:12px}
+  .trainbig{font-size:20px; font-weight:700; font-variant-numeric:tabular-nums}
+  .live{color:var(--ok); font-size:12px; font-weight:700; letter-spacing:.05em}
+  .countd{margin-left:auto; text-align:right}
+  .countd .cv{font-size:20px; font-weight:700; color:var(--accent); font-variant-numeric:tabular-nums}
+  .countd .cl{font-size:12px; color:var(--faint)}
+
+  /* ============ Plan ============ */
+  .chips{display:flex; flex-wrap:wrap; gap:8px}
+  .chips .pill b{font-weight:700}
+  .primary{
+    display:block; width:100%; padding:15px; border-radius:14px; text-align:center;
+    background:var(--accent); color:#fff; font-size:17px; font-weight:700;
+    transition:transform .15s ease, opacity .2s;
+  }
+  .primary:active{transform:scale(.98)}
+  .ghost{width:100%; padding:13px; border-radius:14px; text-align:center; border:1px solid var(--line); font-size:15px; font-weight:600; color:var(--dim)}
+  .evrow{display:flex; gap:8px; flex-wrap:wrap; margin:2px 0 4px}
+  .explain{font-size:15px; line-height:1.5; color:var(--dim)}
+  .explain b{color:var(--ink)}
+  .alts{display:flex; gap:10px; overflow-x:auto; padding-bottom:4px; scrollbar-width:none}
+  .alt{min-width:200px; flex:0 0 auto; background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:12px 14px}
+  .alt .sc{font-size:13px; color:var(--faint); margin-top:6px}
+  .compiling{display:flex; align-items:center; gap:10px; font-size:15px; color:var(--dim); padding:6px 2px}
+  .spinner{width:16px; height:16px; border-radius:50%; border:2px solid var(--line); border-top-color:var(--accent); animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ============ Route ============ */
+  #screen-route{gap:0; height:100%; position:relative; margin:-6px -18px -16px}
+  .mapwrap{position:absolute; inset:0; overflow:hidden}
+  .mapwrap svg{width:100%; height:100%; display:block}
+  .puck{animation:pulse 2.4s ease-out infinite; transform-origin:center}
+  @keyframes pulse{0%{opacity:.9}50%{opacity:.5}100%{opacity:.9}}
+  .routedash{stroke-dasharray:7 7; animation:dash 1.6s linear infinite}
+  @keyframes dash{to{stroke-dashoffset:-14}}
+  .maptools{position:absolute; top:12px; right:12px; display:flex; flex-direction:column; gap:8px}
+  .mapbtn{width:42px; height:42px; border-radius:12px; background:var(--surface); border:1px solid var(--line);
+          display:flex; align-items:center; justify-content:center; font-size:16px; box-shadow:0 4px 14px rgba(0,0,0,.25)}
+  .sheet{
+    position:absolute; left:0; right:0; bottom:0; background:var(--surface);
+    border-radius:24px 24px 0 0; border:1px solid var(--line); border-bottom:none;
+    box-shadow:0 -12px 32px rgba(0,0,0,.35); padding:8px 18px 14px;
+    transform:translateY(calc(100% - 118px)); transition:transform .28s cubic-bezier(.3,.9,.3,1);
+  }
+  .sheet.open{transform:translateY(0)}
+  .grab{width:38px; height:4px; border-radius:2px; background:var(--line); margin:2px auto 10px}
+  .nextrow{display:flex; align-items:center; gap:12px}
+  .ring{flex-shrink:0}
+  .nextst{font-size:17px; font-weight:700}
+  .nextmeta{font-size:13px; color:var(--dim)}
+  .queue{margin-top:12px; border-top:1px solid var(--line); padding-top:6px}
+  .qrow{display:flex; align-items:center; gap:10px; padding:9px 0; font-size:15px; border-bottom:1px solid var(--line)}
+  .qrow:last-child{border-bottom:none}
+  .qrow .n{width:20px; height:20px; border-radius:50%; background:var(--surface2); font-size:11px; font-weight:700;
+           display:flex; align-items:center; justify-content:center; color:var(--dim); flex-shrink:0}
+  .qrow .doors{margin-left:auto; color:var(--dim); font-size:13px; font-variant-numeric:tabular-nums}
+  .evbar{width:44px; height:4px; border-radius:2px; background:var(--surface2); overflow:hidden; flex-shrink:0}
+  .evbar i{display:block; height:100%; background:var(--sale)}
+
+  /* ============ Log ============ */
+  .addr{display:flex; align-items:center; justify-content:center; gap:6px}
+  .addrbtn{width:48px; height:48px; border-radius:12px; background:var(--surface); border:1px solid var(--line); font-size:20px; color:var(--dim)}
+  .addrmain{text-align:center; min-width:180px}
+  .addrst{font-size:20px; font-weight:700; letter-spacing:-.01em}
+  .addrmeta{font-size:13px; color:var(--faint); font-variant-numeric:tabular-nums}
+  .logbtns{display:flex; flex-direction:column; gap:10px; margin-top:4px}
+  .lb{
+    border-radius:16px; font-weight:700; color:#fff; text-align:left; padding:0 18px;
+    display:flex; align-items:center; gap:12px; transition:transform .1s ease, filter .15s;
+  }
+  .lb:active{transform:scale(.975); filter:brightness(1.15)}
+  .lb .k{font-size:18px}
+  .lb small{margin-left:auto; font-weight:600; opacity:.75; font-size:13px}
+  .lbrow{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .lb.h72{height:72px; font-size:19px}
+  .lb.h60{height:60px; font-size:17px}
+  .lb.h52{height:52px; font-size:15px}
+  .snack{
+    position:absolute; left:18px; right:18px; bottom:96px; background:var(--surface2);
+    border:1px solid var(--line); border-radius:14px; padding:12px 14px;
+    display:flex; align-items:center; gap:10px; font-size:15px; font-weight:600;
+    box-shadow:0 10px 26px rgba(0,0,0,.35);
+    opacity:0; transform:translateY(10px); pointer-events:none; transition:all .2s ease; z-index:40;
+  }
+  .snack.show{opacity:1; transform:none; pointer-events:auto}
+  .snack .undo{margin-left:auto; color:var(--accent); font-weight:700; padding:4px 8px}
+
+  /* ============ Stats ============ */
+  .tl{display:flex; flex-direction:column}
+  .tlr{display:flex; gap:10px; font-size:14px; padding:5px 0; align-items:baseline}
+  .tlr .t{width:44px; color:var(--dim); font-variant-numeric:tabular-nums; font-size:13px; flex-shrink:0}
+  table{width:100%; border-collapse:collapse; font-size:14px; font-variant-numeric:tabular-nums}
+  th{font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--faint); text-align:right; padding:4px 0; font-weight:600}
+  th:first-child, td:first-child{text-align:left}
+  td{padding:7px 0; border-top:1px solid var(--line); text-align:right}
+  td:first-child{font-weight:600}
+  .coach{font-size:15px; line-height:1.5}
+  .coach li{margin:6px 0 6px 18px}
+  .records{display:flex; gap:8px; flex-wrap:wrap}
+  .rec{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:10px 12px; flex:1 1 40%}
+  .rec .rv{font-size:18px; font-weight:700; font-variant-numeric:tabular-nums}
+  .rec .rl{font-size:12px; color:var(--faint)}
+  .streak{display:flex; align-items:center; gap:10px}
+  .flame{font-size:26px}
+
+  /* ============ Nudge banner ============ */
+  .nudge{
+    position:absolute; left:12px; right:12px; bottom:86px; z-index:50;
+    background:var(--surface); border:1px solid var(--line); border-left:4px solid var(--accent);
+    border-radius:14px; padding:12px 14px; display:flex; gap:12px; align-items:center;
+    box-shadow:0 14px 34px rgba(0,0,0,.45);
+    opacity:0; transform:translateY(14px); pointer-events:none; transition:all .25s ease;
+  }
+  .nudge.show{opacity:1; transform:none; pointer-events:auto}
+  .nudge.warn{border-left-color:var(--warn)}
+  .nudge .nt{font-size:15px; font-weight:700}
+  .nudge .nb{font-size:13px; color:var(--dim); margin-top:2px}
+  .nudge .act{margin-left:auto; color:var(--accent); font-weight:700; font-size:14px; flex-shrink:0; padding:6px 8px}
+
+  /* ============ Tab bar ============ */
+  .tabbar{
+    display:flex; border-top:1px solid var(--line); background:var(--surface);
+    padding:6px 6px calc(10px + env(safe-area-inset-bottom));
+  }
+  .tab{flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:7px 0 4px;
+       color:var(--faint); font-size:11px; font-weight:600; border-radius:12px; min-height:48px}
+  .tab svg{width:23px; height:23px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round}
+  .tab.active{color:var(--accent)}
+  .offline{display:none; text-align:center; font-size:12px; font-weight:700; color:var(--warn);
+           background:rgba(245,158,11,.12); padding:4px; letter-spacing:.04em}
+</style>
+</head>
+<body>
+<div class="app" data-mode="night" id="app">
+
+  <div class="offline" id="offline">OFFLINE — 12 EVENTS QUEUED · MAPS &amp; PLAN CACHED</div>
+
+  <!-- status strip -->
+  <div class="status">
+    <span class="clock">14:38</span>
+    <span class="sys">
+      <span class="sysitem"><span class="dot" style="background:var(--ok)"></span>GPS</span>
+      <span class="sysitem"><span class="dot" style="background:var(--ok)"></span>Sync</span>
+      <span class="sysitem" style="font-weight:600">71%</span>
+      <button class="modebtn" id="modebtn" aria-label="Toggle sunlight mode">☀︎ Sun</button>
+    </span>
+  </div>
+
+  <div class="content" id="content">
+
+    <!-- ============ TODAY ============ -->
+    <section class="screen active" id="screen-today" aria-label="Today">
+      <div class="hero">
+        <div class="heror">
+          <span class="loc">Tilburg · Groenewoud</span>
+          <span class="pill" style="margin-left:auto">Tue 18 Jul</span>
+        </div>
+        <div class="weather">
+          <span class="temp">21°</span>
+          <span class="wmeta">Partly cloudy · Wind SW 3</span>
+          <span class="pill rainpill" id="rainpill">☂ Rain in 52 min</span>
+        </div>
+        <div class="hoursbar">
+          <div class="hourslbl"><span>Workday 12:00 – 18:00</span><span>2h 38m in · 3h 22m left</span></div>
+          <div class="track"><div class="fill" style="width:44%"></div></div>
+        </div>
+      </div>
+
+      <div class="grid" role="list" aria-label="Today's numbers">
+        <div class="stat"><div class="statv" id="s-doors">87</div><div class="statl">Doors</div></div>
+        <div class="stat"><div class="statv" id="s-convos">14</div><div class="statl">Convos</div></div>
+        <div class="stat"><div class="statv" id="s-sales">4</div><div class="statl">Sales</div></div>
+        <div class="stat"><div class="statv" id="s-earn">€152</div><div class="statl">Est. earned</div>
+          <svg class="spark" width="72" height="16" viewBox="0 0 72 16" aria-hidden="true">
+            <polyline points="0,14 12,12 24,12 33,8 45,8 56,4 66,4 72,2" fill="none" stroke="var(--sale)" stroke-width="2"/>
+          </svg>
+        </div>
+        <div class="stat"><div class="statv" id="s-steps">9,418</div><div class="statl">Steps</div></div>
+        <div class="stat"><div class="statv" id="s-km">7.2</div><div class="statl">km walked</div></div>
+      </div>
+
+      <div class="card">
+        <div class="cardtitle">Route · 3 of 7 legs done</div>
+        <div class="legrow done"><span class="t">12:19</span><span class="legicon">🚆</span>Sprinter Den Bosch → Tilburg</div>
+        <div class="legrow done"><span class="t">12:46</span><span class="legicon">🏋️</span>Basic-Fit Spoorlaan — bag in locker</div>
+        <div class="legrow done"><span class="t">13:05</span><span class="legicon">🚪</span>Loop A · Groenewoud-West · 62 doors</div>
+        <div class="legrow now"><span class="t">14:25</span><span class="legicon">🚪</span>Loop B · Groenewoud-Oost · 58 doors</div>
+        <div class="legrow"><span class="t">15:40</span><span class="legicon">☕</span>Coffee · Anne&amp;Max, 6 min ahead</div>
+        <div class="legrow"><span class="t">16:00</span><span class="legicon">🚪</span>Loop C · Stappegoor-Noord · 54 doors</div>
+        <div class="legrow"><span class="t">17:45</span><span class="legicon">🚆</span>Bag pickup → IC 18:02 home</div>
+      </div>
+
+      <div class="card traincard">
+        <span class="legicon" style="width:34px;height:34px;font-size:17px">🚆</span>
+        <div>
+          <div class="trainbig">IC 18:02 → Den Bosch</div>
+          <div class="sub" style="font-size:13px">Platform 2 · <span class="live">ON TIME</span> · walk 14 min + bag pickup</div>
+        </div>
+        <div class="countd"><div class="cv">3:07</div><div class="cl">until leave-by</div></div>
+      </div>
+
+      <div class="card" style="display:flex;gap:10px;align-items:center">
+        <span class="dot" style="background:var(--ok)"></span>
+        <span class="sub" style="font-size:14px">No disruptions on your lines · NS &amp; Arriva live</span>
+      </div>
+    </section>
+
+    <!-- ============ PLAN ============ -->
+    <section class="screen" id="screen-plan" aria-label="Plan">
+      <div>
+        <div class="h1">Compile your day</div>
+        <div class="sub">Ten taps, zero typing. 2DAY does the rest.</div>
+      </div>
+      <div class="card">
+        <div class="cardtitle">Inputs</div>
+        <div class="chips">
+          <span class="pill">📍 <b>Maaspoort, Den Bosch</b></span>
+          <span class="pill">🏁 End in <b>Tilburg</b></span>
+          <span class="pill">🕐 <b>12:00–18:00</b></span>
+          <span class="pill">🚆 Train</span>
+          <span class="pill">🎒 Backpack</span>
+          <span class="pill">🏋️ Basic-Fit</span>
+          <span class="pill">👟 Normal pace</span>
+          <span class="pill">💶 Middle income</span>
+          <span class="pill">🏢 Avoid apartments</span>
+          <span class="pill" style="border-color:var(--accent);color:var(--accent)">🎯 Max sales</span>
+        </div>
+      </div>
+      <button class="primary" id="compilebtn">Compile day</button>
+      <div id="planresult" hidden>
+        <div class="card" style="margin-bottom:12px">
+          <div class="cardtitle">Compiled plan · Tilburg</div>
+          <div class="evrow">
+            <span class="pill">~210 doors</span><span class="pill">~34 convos</span>
+            <span class="pill" style="color:var(--sale)">~6 sales</span><span class="pill">9.8 km</span>
+          </div>
+          <div class="legrow"><span class="t">12:04</span><span class="legicon">🚶</span>Walk to Den Bosch Centraal · 11 min</div>
+          <div class="legrow"><span class="t">12:19</span><span class="legicon">🚆</span>Sprinter → Tilburg · 27 min, 0 changes</div>
+          <div class="legrow"><span class="t">12:46</span><span class="legicon">🏋️</span>Basic-Fit Spoorlaan · lockers free · bag drop</div>
+          <div class="legrow"><span class="t">13:05</span><span class="legicon">🚪</span>Loop A · Groenewoud-West · 62 doors</div>
+          <div class="legrow"><span class="t">14:25</span><span class="legicon">🚪</span>Loop B · Groenewoud-Oost · 58 doors</div>
+          <div class="legrow"><span class="t">15:40</span><span class="legicon">☕</span>Coffee · Anne&amp;Max · on route</div>
+          <div class="legrow"><span class="t">16:00</span><span class="legicon">🚪</span>Loop C · Stappegoor-Noord · 54 doors</div>
+          <div class="legrow"><span class="t">17:45</span><span class="legicon">🚆</span>Bag pickup → IC 18:02 · home 18:29</div>
+        </div>
+        <div class="card" style="margin-bottom:12px">
+          <div class="cardtitle">Why this plan</div>
+          <p class="explain"><b>Groenewoud beats Breda-Noord today:</b> 84% terraced housing (you avoid
+          apartments), middle-income fit, and your history here converts 1.7× your average.
+          Loops run west→east so you finish 14 min from the station — no backtracking, and the
+          gym holds your bag the whole day.</p>
+        </div>
+        <div class="cardtitle" style="margin:0 2px 2px">Alternatives</div>
+        <div class="alts">
+          <div class="alt"><b>Breda · Haagse Beemden</b><div class="sc">~29 convos · 1 change · score 87</div></div>
+          <div class="alt"><b>Eindhoven · Achtse Barrier</b><div class="sc">~31 convos · longer ride · score 84</div></div>
+        </div>
+        <div style="height:12px"></div>
+        <button class="primary" id="acceptbtn">Accept · download Day Pack (18 MB)</button>
+        <div style="height:8px"></div>
+        <button class="ghost">Adjust inputs</button>
+      </div>
+    </section>
+
+    <!-- ============ ROUTE ============ -->
+    <section class="screen" id="screen-route" aria-label="Route">
+      <div class="mapwrap">
+        <svg viewBox="0 0 412 700" preserveAspectRatio="xMidYMid slice" aria-label="Stylized neighborhood map with planned loop">
+          <rect width="412" height="700" fill="var(--mapland)"/>
+          <!-- building blocks -->
+          <g fill="var(--mapblock)">
+            <rect x="30" y="60" width="150" height="70" rx="6"/><rect x="220" y="60" width="160" height="70" rx="6"/>
+            <rect x="30" y="170" width="150" height="80" rx="6"/><rect x="220" y="170" width="160" height="80" rx="6"/>
+            <rect x="30" y="290" width="150" height="80" rx="6"/><rect x="220" y="290" width="160" height="80" rx="6"/>
+            <rect x="30" y="410" width="150" height="70" rx="6"/><rect x="220" y="410" width="160" height="70" rx="6"/>
+            <rect x="30" y="520" width="350" height="60" rx="6"/>
+          </g>
+          <!-- streets -->
+          <g stroke="var(--mapstreet)" stroke-width="10" stroke-linecap="round">
+            <line x1="10" y1="150" x2="402" y2="150"/><line x1="10" y1="270" x2="402" y2="270"/>
+            <line x1="10" y1="390" x2="402" y2="390"/><line x1="10" y1="500" x2="402" y2="500"/>
+            <line x1="200" y1="40" x2="200" y2="600"/><line x1="20" y1="40" x2="20" y2="600"/><line x1="392" y1="40" x2="392" y2="600"/>
+            <line x1="10" y1="610" x2="402" y2="610"/>
+          </g>
+          <!-- walked trace -->
+          <polyline points="20,610 20,500 200,500 200,390 20,390 20,270 150,270" fill="none"
+                    stroke="var(--faint)" stroke-width="4" stroke-linecap="round" opacity=".7"/>
+          <!-- planned loop remaining -->
+          <polyline class="routedash" points="150,270 392,270 392,150 200,150 200,270" fill="none"
+                    stroke="var(--accent)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+          <!-- door dots on walked streets -->
+          <g>
+            <circle cx="50" cy="493" r="5" fill="var(--noans)"/><circle cx="80" cy="493" r="5" fill="var(--convo)"/>
+            <circle cx="110" cy="493" r="5" fill="var(--sale)"/><circle cx="140" cy="493" r="5" fill="var(--noans)"/>
+            <circle cx="170" cy="493" r="5" fill="var(--notint)"/>
+            <circle cx="60" cy="383" r="5" fill="var(--convo)"/><circle cx="95" cy="383" r="5" fill="var(--noans)"/>
+            <circle cx="130" cy="383" r="5" fill="var(--fup)"/><circle cx="165" cy="383" r="5" fill="var(--noans)"/>
+            <circle cx="45" cy="263" r="5" fill="var(--sale)"/><circle cx="85" cy="263" r="5" fill="var(--noans)"/>
+            <circle cx="120" cy="263" r="5" fill="var(--dnk)"/>
+          </g>
+          <!-- anchors -->
+          <g font-size="15" text-anchor="middle">
+            <rect x="368" y="586" width="34" height="34" rx="10" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="385" y="609">🚆</text>
+            <rect x="30" y="46" width="34" height="34" rx="10" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="47" y="69">🏋️</text>
+            <rect x="300" y="236" width="34" height="34" rx="10" fill="var(--surface)" stroke="var(--line)"/>
+            <text x="317" y="259">☕</text>
+          </g>
+          <!-- rep puck -->
+          <g class="puck"><circle cx="150" cy="270" r="14" fill="var(--accent)" opacity=".25"/>
+            <circle cx="150" cy="270" r="7" fill="var(--accent)" stroke="#fff" stroke-width="2"/></g>
+        </svg>
+      </div>
+      <div class="maptools">
+        <button class="mapbtn" aria-label="Heat overlay">🔥</button>
+        <button class="mapbtn" aria-label="Center on me">◎</button>
+      </div>
+      <div class="sheet" id="sheet">
+        <button style="width:100%" id="sheettoggle" aria-label="Expand street queue"><div class="grab"></div></button>
+        <div class="nextrow">
+          <svg class="ring" width="52" height="52" viewBox="0 0 52 52" aria-hidden="true">
+            <circle cx="26" cy="26" r="22" fill="none" stroke="var(--surface2)" stroke-width="5"/>
+            <circle cx="26" cy="26" r="22" fill="none" stroke="var(--accent)" stroke-width="5"
+                    stroke-dasharray="138" stroke-dashoffset="55" stroke-linecap="round" transform="rotate(-90 26 26)"/>
+            <text x="26" y="31" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">60%</text>
+          </svg>
+          <div>
+            <div class="nextst">Meidoornstraat — even side</div>
+            <div class="nextmeta">23 doors · high EV · then left into Lijsterbeslaan</div>
+          </div>
+        </div>
+        <div class="queue">
+          <div class="qrow"><span class="n">1</span>Meidoornstraat (even)<span class="evbar"><i style="width:86%"></i></span><span class="doors">23</span></div>
+          <div class="qrow"><span class="n">2</span>Lijsterbeslaan (both)<span class="evbar"><i style="width:71%"></i></span><span class="doors">31</span></div>
+          <div class="qrow"><span class="n">3</span>Esdoornstraat (odd)<span class="evbar"><i style="width:64%"></i></span><span class="doors">17</span></div>
+          <div class="qrow" style="opacity:.55"><span class="n">✕</span>Beethovenlaan — skipped: 78% apartments<span class="doors"></span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ LOG ============ -->
+    <section class="screen" id="screen-log" aria-label="Log a door">
+      <div class="addr">
+        <button class="addrbtn" id="addrprev" aria-label="Previous door">‹</button>
+        <div class="addrmain">
+          <div class="addrst" id="addrline">Meidoornstraat 42</div>
+          <div class="addrmeta">Terraced · built 1978 · label C · door 8 of 23</div>
+        </div>
+        <button class="addrbtn" id="addrnext" aria-label="Next door">›</button>
+      </div>
+      <div class="logbtns" id="logbtns">
+        <button class="lb h72" data-o="No answer" style="background:var(--noans)"><span class="k">🚪</span>No answer<small>~62%</small></button>
+        <button class="lb h60" data-o="Conversation" style="background:var(--convo)"><span class="k">💬</span>Conversation</button>
+        <button class="lb h60" data-o="Sale" style="background:var(--sale)"><span class="k">✓</span>Sale<small>+€38</small></button>
+        <div class="lbrow">
+          <button class="lb h52" data-o="Not interested" style="background:var(--notint)">Not interested</button>
+          <button class="lb h52" data-o="Follow-up" style="background:var(--fup)">Follow-up</button>
+        </div>
+        <div class="lbrow">
+          <button class="lb h52" data-o="Do not knock" style="background:var(--dnk)">Do not knock</button>
+          <button class="lb h52" data-o="Inaccessible" style="background:var(--inacc)">Inaccessible</button>
+        </div>
+      </div>
+      <p class="sub" style="text-align:center;font-size:13px">One tap logs &amp; advances · hold a button for note</p>
+    </section>
+
+    <!-- ============ STATS ============ -->
+    <section class="screen" id="screen-stats" aria-label="Stats">
+      <div class="h1">Today's review</div>
+      <div class="card">
+        <div class="cardtitle">Timeline</div>
+        <div class="tl">
+          <div class="tlr"><span class="t">12:19</span>Sprinter to Tilburg — planned train caught</div>
+          <div class="tlr"><span class="t">13:05</span>Loop A start · first sale at 13:22 <span style="color:var(--sale)">●</span></div>
+          <div class="tlr"><span class="t">14:25</span>Loop B · pace +9 doors vs plan</div>
+          <div class="tlr"><span class="t">14:31</span>2 sales in Wilgenstraat <span style="color:var(--sale)">● ●</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="cardtitle">By neighborhood</div>
+        <table>
+          <thead><tr><th>Loop</th><th>Doors/h</th><th>Conv %</th><th>€</th></tr></thead>
+          <tbody>
+            <tr><td>A · Groenewoud-W</td><td>44</td><td>17%</td><td>76</td></tr>
+            <tr><td>B · Groenewoud-O</td><td>51</td><td>15%</td><td>76</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="cardtitle">Coach · 3 improvements</div>
+        <ol class="coach">
+          <li><b>Your 13:00–14:00 hour converts 2.1×</b> your late-afternoon — start 30 min earlier when you can.</li>
+          <li>4 minutes lost re-crossing Ringbaan — accept the suggested crossing next time.</li>
+          <li>Follow-ups from last Tuesday are 400 m from Loop C — 3 warm doors added.</li>
+        </ol>
+      </div>
+      <div class="card streak"><span class="flame">🔥</span>
+        <div><b>6-day streak</b><div class="sub" style="font-size:13px">Personal best: 11 days</div></div>
+        <span class="pill" style="margin-left:auto">#3 this week</span>
+      </div>
+      <div class="records">
+        <div class="rec"><div class="rv">21</div><div class="rl">Best doors in one hour</div></div>
+        <div class="rec"><div class="rv">23%</div><div class="rl">Best conversion day</div></div>
+        <div class="rec"><div class="rv">€41/h</div><div class="rl">Record rate · Tilburg</div></div>
+        <div class="rec"><div class="rv">4.1</div><div class="rl">km per sale (lower = better)</div></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- nudge banner -->
+  <div class="nudge" id="nudge" role="status">
+    <div><div class="nt" id="nudgetitle">☂ Rain starts in 22 min</div>
+      <div class="nb" id="nudgebody">Zuid loop first keeps you dry — saves 9 wet minutes.</div></div>
+    <button class="act" id="nudgeact">Re-plan</button>
+  </div>
+
+  <!-- undo snackbar -->
+  <div class="snack" id="snack"><span id="snacktext">Logged</span><button class="undo" id="undobtn">Undo</button></div>
+
+  <!-- tab bar -->
+  <nav class="tabbar" aria-label="Main">
+    <button class="tab active" data-tab="today"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Today</button>
+    <button class="tab" data-tab="plan"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Plan</button>
+    <button class="tab" data-tab="route"><svg viewBox="0 0 24 24"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h7a4 4 0 0 0 0-8H9a4 4 0 0 1 0-8h7"/></svg>Route</button>
+    <button class="tab" data-tab="log"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><circle cx="15" cy="12" r="1.2" fill="currentColor"/></svg>Log</button>
+    <button class="tab" data-tab="stats"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Stats</button>
+  </nav>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const app = $('app');
+
+  /* ---- theme ---- */
+  $('modebtn').addEventListener('click', () => {
+    const sun = app.dataset.mode === 'night';
+    app.dataset.mode = sun ? 'sun' : 'night';
+    $('modebtn').textContent = sun ? '☾ Night' : '☀︎ Sun';
+  });
+
+  /* ---- tabs ---- */
+  const tabs = document.querySelectorAll('.tab');
+  function go(name){
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+    document.querySelectorAll('.screen').forEach(s =>
+      s.classList.toggle('active', s.id === 'screen-' + name));
+    $('content').scrollTop = 0;
+    if(name === 'route' && !go.trainShown){ go.trainShown = true; setTimeout(() => showNudge(
+      '🚆 IC 18:02 → leave by 17:45', 'Walk 14 min + bag pickup. You have margin: 43 doors left fit.', 'OK', false), 2600); }
+  }
+  tabs.forEach(t => t.addEventListener('click', () => go(t.dataset.tab)));
+
+  /* ---- plan compile ---- */
+  $('compilebtn').addEventListener('click', () => {
+    const b = $('compilebtn');
+    b.disabled = true;
+    b.innerHTML = '<span class="compiling" style="justify-content:center;color:#fff"><span class="spinner"></span>Compiling — scoring 14 areas…</span>';
+    setTimeout(() => { $('planresult').hidden = false; b.style.display = 'none';
+      $('planresult').scrollIntoView({behavior:'smooth', block:'start'}); }, 1400);
+  });
+  $('acceptbtn').addEventListener('click', function(){
+    this.textContent = 'Day Pack downloaded ✓ — plan is live';
+    this.style.background = 'var(--sale)';
+    setTimeout(() => go('route'), 900);
+  });
+
+  /* ---- route sheet ---- */
+  $('sheettoggle').addEventListener('click', () => $('sheet').classList.toggle('open'));
+
+  /* ---- log flow ---- */
+  const street = 'Meidoornstraat';
+  let houseNo = 42, doorIdx = 8, lastAction = null;
+  const stats = { doors:87, convos:14, sales:4, earn:152 };
+  const fmt = () => {
+    $('s-doors').textContent = stats.doors;
+    $('s-convos').textContent = stats.convos;
+    $('s-sales').textContent = stats.sales;
+    $('s-earn').textContent = '€' + stats.earn;
+  };
+  const setAddr = () => {
+    $('addrline').textContent = street + ' ' + houseNo;
+    document.querySelector('.addrmeta').textContent =
+      'Terraced · built 1978 · label C · door ' + doorIdx + ' of 23';
+  };
+  $('addrprev').addEventListener('click', () => { if(doorIdx>1){ houseNo-=2; doorIdx--; setAddr(); } });
+  $('addrnext').addEventListener('click', () => { if(doorIdx<23){ houseNo+=2; doorIdx++; setAddr(); } });
+
+  let snackTimer;
+  function snack(text){
+    $('snacktext').textContent = text;
+    $('snack').classList.add('show');
+    clearTimeout(snackTimer);
+    snackTimer = setTimeout(() => $('snack').classList.remove('show'), 5000);
+  }
+  document.querySelectorAll('.lb').forEach(btn => btn.addEventListener('click', () => {
+    const o = btn.dataset.o;
+    lastAction = { o, houseNo, doorIdx };
+    stats.doors++;
+    if(o === 'Conversation') stats.convos++;
+    if(o === 'Sale'){ stats.sales++; stats.convos++; stats.earn += 38; }
+    fmt();
+    if(navigator.vibrate) navigator.vibrate(30);
+    snack(o + ' — ' + street + ' ' + lastAction.houseNo);
+    if(doorIdx < 23){ houseNo += 2; doorIdx++; }
+    setAddr();
+  }));
+  $('undobtn').addEventListener('click', () => {
+    if(!lastAction) return;
+    stats.doors--;
+    if(lastAction.o === 'Conversation') stats.convos--;
+    if(lastAction.o === 'Sale'){ stats.sales--; stats.convos--; stats.earn -= 38; }
+    fmt();
+    houseNo = lastAction.houseNo; doorIdx = lastAction.doorIdx; setAddr();
+    lastAction = null;
+    $('snack').classList.remove('show');
+  });
+
+  /* ---- nudges ---- */
+  let nudgeTimer;
+  function showNudge(title, body, act, warn){
+    $('nudgetitle').textContent = title;
+    $('nudgebody').textContent = body;
+    $('nudgeact').textContent = act;
+    $('nudge').classList.toggle('warn', !!warn);
+    $('nudge').classList.add('show');
+    clearTimeout(nudgeTimer);
+    nudgeTimer = setTimeout(() => $('nudge').classList.remove('show'), 9000);
+  }
+  $('nudgeact').addEventListener('click', () => {
+    $('nudge').classList.remove('show');
+    const rp = $('rainpill'); if(rp) rp.textContent = '☂ Route re-planned for rain';
+  });
+  setTimeout(() => showNudge('☂ Rain starts in 22 min', 'Zuid loop first keeps you dry — saves 9 wet minutes.', 'Re-plan', true), 5000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-label="2DAY — the field operating system for door-to-door sales">
+  <defs>
+    <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3B82F6" stop-opacity="0"/>
+      <stop offset="1" stop-color="#3B82F6" stop-opacity=".9"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="320" rx="18" fill="#0B0F14"/>
+  <rect x="1" y="1" width="1198" height="318" rx="17" fill="none" stroke="#243040"/>
+  <!-- faint street grid -->
+  <g stroke="#1C2530" stroke-width="2">
+    <line x1="660" y1="40" x2="660" y2="280"/><line x1="800" y1="40" x2="800" y2="280"/>
+    <line x1="940" y1="40" x2="940" y2="280"/><line x1="1080" y1="40" x2="1080" y2="280"/>
+    <line x1="620" y1="80" x2="1160" y2="80"/><line x1="620" y1="160" x2="1160" y2="160"/>
+    <line x1="620" y1="240" x2="1160" y2="240"/>
+  </g>
+  <!-- walking loop -->
+  <polyline points="640,240 800,240 800,160 660,160 660,80 940,80 940,160 1080,160 1080,240 1150,240"
+            fill="none" stroke="url(#fade)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="14 12"/>
+  <!-- door dots, outcome palette -->
+  <g>
+    <circle cx="720" cy="240" r="8" fill="#64748B"/><circle cx="762" cy="240" r="8" fill="#3B82F6"/>
+    <circle cx="800" cy="200" r="8" fill="#22C55E"/><circle cx="722" cy="160" r="8" fill="#64748B"/>
+    <circle cx="700" cy="80" r="8" fill="#F59E0B"/><circle cx="760" cy="80" r="8" fill="#3B82F6"/>
+    <circle cx="828" cy="80" r="8" fill="#22C55E"/><circle cx="895" cy="80" r="8" fill="#64748B"/>
+    <circle cx="940" cy="120" r="8" fill="#A855F7"/><circle cx="1010" cy="160" r="8" fill="#3B82F6"/>
+    <circle cx="1080" cy="200" r="8" fill="#22C55E"/>
+  </g>
+  <!-- anchors: station and gym -->
+  <g font-family="-apple-system,'Segoe UI',sans-serif" font-size="17" font-weight="700" text-anchor="middle">
+    <rect x="616" y="216" width="48" height="48" rx="12" fill="#151B23" stroke="#243040"/>
+    <text x="640" y="247" fill="#E8EDF2">NS</text>
+    <rect x="636" y="56" width="48" height="48" rx="12" fill="#151B23" stroke="#243040"/>
+    <text x="660" y="87" fill="#E8EDF2">GYM</text>
+    <circle cx="1150" cy="240" r="13" fill="#3B82F6"/>
+    <circle cx="1150" cy="240" r="6" fill="#E8EDF2"/>
+  </g>
+  <!-- wordmark -->
+  <g font-family="-apple-system,'Segoe UI',sans-serif">
+    <text x="64" y="150" font-size="104" font-weight="800" letter-spacing="-3" fill="#E8EDF2">2<tspan fill="#3B82F6">DAY</tspan></text>
+    <text x="68" y="196" font-size="25" fill="#8FA0B3">The field operating system for door-to-door sales.</text>
+    <text x="68" y="252" font-size="17" font-weight="600" fill="#5B6B7D" letter-spacing="2">PLAN · WALK LOOPS · LOG · RE-OPTIMIZE · TRAIN HOME</text>
+  </g>
+</svg>
