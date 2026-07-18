@@ -15,7 +15,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { VisitOutcome } from "@2day/core";
+import type { ConversationAnalysis, VisitOutcome } from "@2day/core";
 import {
   initialDayStats,
   logStreet,
@@ -75,6 +75,15 @@ interface StoreValue {
   requestTrainNudge: () => void;
 
   rainReplanned: boolean;
+
+  /** Doorstep conversation-recording flow (components/coach/**) — true
+   *  while the record sheet is open or a session is actively capturing. */
+  recording: boolean;
+  setRecording: (active: boolean) => void;
+  /** Most recent ConversationAnalysis, kept around so the analysis card can
+   *  re-render across store updates until it's logged or dismissed. */
+  lastAnalysis: ConversationAnalysis | null;
+  setLastAnalysis: (analysis: ConversationAnalysis | null) => void;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -93,6 +102,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [dayStats, setDayStats] = useState<DayStats>(initialDayStats);
   const [planAccepted, setPlanAccepted] = useState(false);
   const [rainReplanned, setRainReplanned] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [lastAnalysis, setLastAnalysis] = useState<ConversationAnalysis | null>(null);
 
   const [houseNo, setHouseNo] = useState(logStreet.initialHouseNo);
   const [doorIdx, setDoorIdx] = useState(logStreet.initialDoorIdx);
@@ -241,6 +252,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dismissNudge,
       requestTrainNudge,
       rainReplanned,
+      recording,
+      setRecording,
+      lastAnalysis,
+      setLastAnalysis,
     }),
     [
       mode,
@@ -261,6 +276,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dismissNudge,
       requestTrainNudge,
       rainReplanned,
+      recording,
+      lastAnalysis,
     ],
   );
 

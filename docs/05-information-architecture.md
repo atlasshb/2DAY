@@ -81,6 +81,9 @@ flowchart TD
 
     subgraph L["LOG tab"]
         Log0[D0 1-tap outcome buttons - current door]
+        Log0 --> LRecord[D1 Record conversation sheet - Record pill]
+        LRecord --> LAnalysis[D1 Conversation analysis card - replaces sheet in place]
+        LAnalysis -.Log as outcome, same visit write as the buttons.-> Log0
         Log0 --> LJump[D1 Jump to another address]
         Log0 --> LFollowup[D1 Follow-up scheduler sheet]
         Log0 --> LSale[D1 Sale amount confirm sheet]
@@ -167,17 +170,21 @@ Purpose: live spatial awareness. This is the tab whose *content*, not just its s
 
 ### 3.4 Log — "one tap, keep walking"
 
-Purpose: the single most-used screen in the product. Full detail (buttons, sizing, haptics) in `06-mobile-wireframes.md`. Primary action **is** the screen — 7 outcome buttons, no chrome above the fold beyond the address context bar.
+Purpose: the single most-used screen in the product. Full detail (buttons, sizing, haptics) in `06-mobile-wireframes.md`. Primary action **is** the screen — 7 outcome buttons, with the address context bar above them and exactly one piece of chrome between the two: the **Record** pill (`app/src/components/coach/CoachRecorder.tsx`, mounted between `AddressScrubber` and `OutcomeButtons` in `app/src/app/log/page.tsx`) — the entry point to the doorstep conversation coach (`21-conversation-intelligence.md`). It is a single 48 px pill, not a card, so it never competes with the buttons for the fold.
 
 | Screen | Depth | Reached from | Notes |
 |---|---|---|---|
 | Log (current door) | D0 | tab bar, or "Log this door" from Route | ‹ › stepper in the address bar moves through the *planned sequence* — this does not add depth, it's in-place |
+| Record conversation sheet | D1 | tap the Record pill on Log D0 | Consent chip (defaults **Notes only**, doc 21 §2.2) + live capture (timer, Stop), or the always-available samples fallback — full detail `06` §14.1 |
+| Conversation analysis card | D1 | automatic, the instant Stop resolves | Replaces the record sheet **in place** (same mount point, same backdrop) — outcome + coaching card stack from the on-device deterministic analyzer (doc 21 §5.1); full detail `06` §14.2 |
 | Jump to another address | D1 | rare — logging out of GPS sequence | Search/list of nearby `address_unit`s |
 | Follow-up scheduler | D1 | outcome = follow_up | Date/time picker (transient, no added depth) |
 | Sale amount confirm | D1 | outcome = sale | Pre-filled from `campaign` commission, editable |
 | Today's log list | D1 | swipe up on address bar, or Stats → Timeline link | Every `visit` logged today |
 | Edit a past entry | D2 | Today's log list | Correct a mis-tap after the 5-s undo window closed |
 | Do-not-knock reason | D2 | Today's log list, or long-press a DNK entry | Compliance note, feeds org-wide do-not-knock (V2) |
+
+**Depth check — the coach flow never exceeds D1.** Record sheet and Analysis card are two states of one mounted component (`CoachRecorder.tsx`'s `stage` machine: `sheet` → `analyzing` → `analysis`), not two sheets stacked on top of one another — the analysis card replaces the record sheet in the same portal exactly the way the Plan wizard's `Compiling` step replaces itself with `Plan result` without adding depth (§3.2). Both therefore sit at **D1** off Log's D0, matching §1's floor rule that field-critical screens live at D0 or D1. "Log as {outcome}" on the analysis card does not navigate anywhere — it calls the identical `logOutcome` the 7 outcome buttons call, writing the same `visit` event, then dismisses back to D0. That reuses the "Today's log list" row's existing **snackbar + 5-s undo** (above; `06` §6.2) — it is not a new nudge, and it does not touch the Field Brain nudge system at all: §7's banner/sheet/push channels carry only the `rain`/`train` nudge kinds (`app/src/lib/store.tsx`), so the coach flow has no nudge of its own to add there.
 
 ### 3.5 Stats — "how did I do, and what do I improve"
 

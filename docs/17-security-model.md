@@ -139,6 +139,9 @@ by the legal obligation to honor the objection.
 |---|---|---|---|
 | `breadcrumb` (precise GPS) | **90 days**, then truncate to res-8 or delete | rolling | Beyond the EV recency half-life; minimize precise location |
 | `breadcrumb` (coarse) | 180 days | rolling | Pace/history value, low sensitivity |
+| conversation **audio** (doc 21) | **0 — never persisted** | on-device | Transcribed on-device, buffer discarded; highest-risk artifact designed out (doc 21 §2) |
+| conversation **transcript** (doc 21) | **≤ 90 days** (org-configured) | rolling | Personal data of rep + resident; minimize (doc 21 §2.4) |
+| `conversation_analysis` (doc 21) | tracks its transcript | rolling | Deleted with the transcript |
 | `visit` events | Duration of org contract + 12 mo | contract end | Sales record; org is controller |
 | `sale` | 7 years | creation | Dutch tax/accounting obligation |
 | `plan` / `plan_leg` | 90 days | creation | Ephemeral operational data |
@@ -177,6 +180,17 @@ k-anonymized org stats that contain no recoverable individual data, `sale` rows 
 (pseudonymized), and the `do_not_knock` association (legal obligation, §3.4) — each documented in the
 DSR response so the request is answered honestly.
 
+**Conversation transcripts (doc 21) ride this machinery unchanged.** A transcript is personal-scope
+event data of **both** the rep and the resident, so it is stored **encrypted at rest under the rep's
+DEK** exactly like a breadcrumb: a delete DSR that destroys the rep's key crypto-shreds every
+transcript **and** its derived `conversation_analysis` ciphertext in O(1), backups included —
+conversation intelligence adds **no new erasure path**. Raw audio is never in scope because it is never
+persisted (doc 21 §2). The single org-visible surface, the `conversation_org_stats` view, is
+**quote-free by construction**: it selects only counts, the outcome/campaign dimensions, and averages —
+never a transcript segment or a verbatim objection quote — and suppresses any bucket backed by fewer
+than `K = 5` reps (§3.3), so a delete leaves nothing individually recoverable there to erase. (Design,
+doc 21; not yet an implemented backend.)
+
 ### 3.7 EU data residency per vendor
 
 | Vendor | Role | Residency |
@@ -185,7 +199,7 @@ DSR response so the request is answered honestly.
 | Fly.io | Planner, Valhalla, VROOM, OTP2 | EU machines (ams/cdg); no tenant data at rest (stateless) |
 | Vercel | Web app | EU edge; static/SSR, no tenant data persisted |
 | PostHog | Telemetry | **Self-hosted EU** (`00` §3) — no US transfer |
-| Anthropic (Claude API) | Intent parse / explain / coach | External; minimized, typed data only, no PII, zero-retention posture where offered; covered by DPA. Only non-EU-resident processor, and it receives the least data — no GPS, no household PII, no raw events (doc 10 §5, §9) |
+| Anthropic (Claude API) | Intent parse / explain / coach | External; minimized, typed data only, zero-retention posture where offered; covered by DPA. Only non-EU-resident processor. Planning flows send no GPS, no household PII, no raw events (doc 10 §5, §9). The **opt-in doorstep coach** (doc 21 §5.2) additionally sends the conversation transcript with GPS and address identifiers stripped — the one flow where free-text personal data reaches Claude, gated on the rep's per-conversation consent state and the org's coach policy |
 | Payment provider | Billing | EU |
 
 The only cross-border processing is Claude API calls, and they are the most minimized data flow in

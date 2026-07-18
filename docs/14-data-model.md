@@ -242,7 +242,21 @@ compliance feature, EU-only residency. Classification drives retention, RLS, and
 | `area` / `building` / `address_unit` / `street_edge` / `poi` | **aggregate / public** | Open data (BAG/CBS/OSM/EP-Online). `address_unit` is a public address, not a resident. |
 | `campaign` | **business** | Commercial config, org-confidential (not personal data). |
 | `disruption_event` | **public** | Open transit/roadworks/weather feeds. |
+| `conversation` (doc 21) | **personal** (sensitive) | Transcript is personal data of **both** the rep and the resident — classified strictest. Rep-owned (RLS to self; **no** lead/admin read path, unlike `visit`). Encrypted at rest under the rep's DEK, crypto-shreddable (doc 17 §3.6). **No audio ever stored** (doc 21 §2). ≤ 90-day retention. *Design, not yet implemented backend.* |
+| `conversation_analysis` (doc 21) | **personal** (sensitive) | Derived coaching; **verbatim objection quotes are personal data**. Rep-owned (RLS to self). Org leads see only the **anonymized** `conversation_org_stats` aggregate — no transcript, no quotes, k-anon ≥ 5. Tracks its transcript's retention. *Design, not yet implemented backend.* |
 
 Anonymization rule of thumb: anything crossing from a rep's own view to an **org** view is reduced to
 H3 aggregate grain with a minimum-count threshold, and raw `gps_breadcrumb` never leaves the personal
 scope. This is the schema-level enforcement of the brief §11 posture.
+
+**Resident-voice-data lifecycle (doc 21).** Voice is the highest-sensitivity artifact in the product,
+and it is designed *out of the store*. Audio is captured only after consent (doc 21 §2.2), transcribed
+**on-device**, and the buffer is **deleted the instant a transcript exists** — there is no audio row in
+the schema at all (the DB analog of the `audioRetained: false` literal, `conversation.ts`). What
+persists is **transcript-only**: text, personal data of both rep and resident, held under the rep's
+org-configured retention (≤ 90 days, doc 17 §3.5) and encrypted at rest under the rep's DEK. A delete
+DSR **crypto-shreds** it for free alongside the rep's other events (doc 17 §3.6) — destroy the key and
+every transcript + analysis ciphertext, backups included, becomes unrecoverable in O(1). Org-level
+insight is served only as **anonymized aggregates** (`conversation_org_stats`: k-anon ≥ 5, quote-free
+by construction), so a resident's words never reach a lead or admin. Deleting the audio at capture is
+the proportionality argument, in code (doc 21 §3).

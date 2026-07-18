@@ -667,3 +667,170 @@ where tstzrange(d.starts_at, d.ends_at) @> now()
   and d.geom && :corridor and st_intersects(d.geom, :corridor);
 -- served by: de_active_ix + de_geom_gix
 ```
+
+## 13. Conversation intelligence (doc 21)
+
+> **Design, not yet an implemented backend.** The doorstep conversation coach (doc 21) persists a
+> synced **transcript** plus its **derived analysis**. The wire contracts and the exact jsonb payload
+> shapes are authored in `packages/core/src/conversation.ts` — that file is the schema authority; the
+> DDL here is only the persistence layer. Shipped as migration `0002_conversations.sql`.
+
+The one non-negotiable, encoded structurally: **raw audio never leaves the device and is deleted the
+moment a transcript exists** (doc 21 §2, doc 17 §3). There is deliberately **no audio column of any
+kind** below — the absence is the enforcement, the database analog of the wire contract's
+`audioRetained: false` literal. Only transcript text and derived analysis ever persist.
+
+### 13.1 Enums
+
+`conversation_outcome` is the **4-value classified subset of `visit_outcome`** (doc 14 §4.1); an
+analysis never mints `no_answer` / `do_not_knock` / `inaccessible`. Postgres enums cannot subtype, so
+it is a distinct type over the shared four values, semantics mirrored from `visit_outcome`.
+
+```sql
+create type consent_state        as enum ('resident_informed','notes_only');
+create type objection_kind       as enum ('price','trust','no_time','already_has_provider',
+                                          'not_decision_maker','language_barrier','bad_experience','other');
+create type coach_engine         as enum ('deterministic','claude');
+create type conversation_outcome as enum ('conversation','sale','not_interested','follow_up');
+```
+
+### 13.2 Tables
+
+`conversation` is a field event with a natural time key and a retention window, exactly like `visit`
+(§8): it is **RANGE-partitioned monthly on `started_at`** and, like `visit`, omits FK references on
+the tenant/geo columns to keep the partitioned DDL light. `conversation_analysis` is its 1:1 derived
+companion, treated like `sale` (§8) — a **soft ref** to the partitioned parent (no FK) that carries
+the parent's partition key, itself not partitioned, with FK references on its own tenant columns; the
+1:1 is enforced by a unique index on `conversation_id`.
+
+```sql
+-- conversation == append-only doorstep meta + transcript. No audio column exists by design.
+create table conversation (
+  id               ulid not null,               -- client-minted ULID (offline-idempotent, brief §7)
+  org_id           uuid not null,
+  rep_id           uuid not null,
+  campaign_id      uuid not null,               -- required by ConversationMeta (conversation.ts)
+  visit_event_id   ulid,                        -- soft back-link to the logged visit (no FK)
+  address_unit_id  uuid,                        -- BAG door when resolved (public address, not a resident)
+  point            geometry(Point,4326),        -- optional; STRIPPED before any Claude call (doc 21 §2.1)
+  started_at       timestamptz not null,        -- PARTITION KEY (device clock, corrected on sync)
+  duration_ms      int not null,
+  consent          consent_state not null,
+  language         text not null,               -- BCP-47 dominant language (doc 21 §4)
+  transcript       jsonb not null default '[]', -- TranscriptSegment[] w/ per-segment lang; schema authority:
+                                                -- conversation.ts. Personal data of rep + resident (doc 14);
+                                                -- encrypted at rest under the rep's DEK, crypto-shreddable (doc 17 §3.6).
+  device_id        uuid not null,               -- sync provenance, as on visit/work_session
+  created_at       timestamptz not null default now(),
+  primary key (id, started_at)                  -- partition key must be in the PK
+) partition by range (started_at);
+
+-- conversation_analysis == 1:1 derived coaching analysis (soft ref to the partitioned parent).
+create table conversation_analysis (
+  id                      ulid primary key,      -- analyzer-minted deterministic ULID (doc 21 §5.3)
+  conversation_id         ulid not null,         -- soft ref to conversation (no FK to partitioned table)
+  conversation_started_at timestamptz not null,  -- carries the conversation partition key for lookups
+  org_id                  uuid not null references org(id) on delete cascade,
+  rep_id                  uuid not null references rep(id) on delete cascade,
+  campaign_id             uuid not null references campaign(id),  -- denormalized for campaign aggregates
+  outcome                 conversation_outcome not null,
+  confidence              numeric(4,3) not null, -- 0..1
+  summary                 text not null,
+  -- jsonb payload shapes authored by conversation.ts (schema authority):
+  what_went_well          jsonb not null default '[]',  -- string[]
+  improvements            jsonb not null default '[]',  -- CoachingTip[]
+  objections              jsonb not null default '[]',  -- Objection[] (verbatim quote — personal, doc 14)
+  talk_ratio              numeric(4,3) not null, -- rep speaking time / total (healthy ≈ 0.4–0.6)
+  questions_asked         int not null default 0,
+  next_step               text,                  -- set for follow_up outcomes
+  language                text not null,
+  translated_summary      text,                  -- summary in the rep's UI language when it differs
+  engine                  coach_engine not null,
+  analyzed_at             timestamptz not null,
+  created_at              timestamptz not null default now()
+);
+```
+
+### 13.3 Indexes (hot paths)
+
+```sql
+create index conv_rep_day_ix on conversation (org_id, rep_id, started_at desc);            -- rep+day review history
+create index conv_visit_ix   on conversation (visit_event_id) where visit_event_id is not null;
+
+create unique index conv_analysis_conv_uix on conversation_analysis (conversation_id);     -- 1:1
+create index conv_analysis_campaign_ix on conversation_analysis (org_id, campaign_id, outcome);  -- campaign aggregates
+create index conv_analysis_outcome_ix  on conversation_analysis (org_id, outcome);         -- outcome filtering
+create index conv_analysis_rep_ix      on conversation_analysis (org_id, rep_id, analyzed_at desc);
+```
+
+### 13.4 RLS — rep-owned, stricter than `visit`
+
+A transcript is personal data of **both** the rep and the resident (doc 14), so — unlike `visit`,
+where a lead sees the stream (§10) — there is **no lead/admin read path** to raw conversations or
+analyses. The rep owns their own; leads see only the quote-free aggregate view (§13.5). Erasure is the
+per-rep crypto-shred (doc 17 §3.6), so there are no UPDATE/DELETE policies.
+
+```sql
+alter table conversation enable row level security;
+create policy conversation_insert_own on conversation for insert to authenticated
+  with check (org_id = auth.org_id() and rep_id = auth.uid());
+create policy conversation_select_own on conversation for select to authenticated
+  using (org_id = auth.org_id() and rep_id = auth.uid());
+
+alter table conversation_analysis enable row level security;
+create policy conversation_analysis_insert_own on conversation_analysis for insert to authenticated
+  with check (org_id = auth.org_id() and rep_id = auth.uid());
+create policy conversation_analysis_select_own on conversation_analysis for select to authenticated
+  using (org_id = auth.org_id() and rep_id = auth.uid());
+-- server-side (re)analysis (planner endpoint, V2 Claude sampling), mirroring sco_write_service (§10):
+create policy conversation_analysis_write_service on conversation_analysis for all to service_role
+  using (true) with check (true);
+```
+
+### 13.5 `conversation_org_stats` — the org-lead surface, quote-free by construction
+
+The only window a lead/admin has into conversation intelligence. It exposes derived **aggregates
+only** — never a transcript segment, never a verbatim objection quote (the `summary`, `objections`,
+and `transcript` payloads are never referenced, so quotes cannot leak) — and is **k-anonymized** to
+≥ 5 distinct reps per bucket (doc 17 §3.3, `K_ANON = 5`). It runs with definer semantics so its owner
+can aggregate across reps past their rep-owned RLS, but is org-scoped by `auth.org_id()` in the body,
+so a caller only ever sees their own org's rollup. Same "aggregates via a view, never raw SELECT"
+pattern as the org heatmap (§10).
+
+```sql
+create view conversation_org_stats as
+select
+  a.org_id,
+  a.campaign_id,
+  date_trunc('day', a.conversation_started_at) as day,
+  a.outcome,
+  count(*)                              as conversation_count,
+  avg(a.talk_ratio)                     as avg_talk_ratio,
+  avg(a.confidence)                     as avg_confidence,
+  avg(a.questions_asked)                as avg_questions_asked,
+  avg(jsonb_array_length(a.objections)) as avg_objections  -- a count only, never the quotes
+from conversation_analysis a
+where a.org_id = auth.org_id()
+group by a.org_id, a.campaign_id, date_trunc('day', a.conversation_started_at), a.outcome
+having count(distinct a.rep_id) >= 5;
+grant select on conversation_org_stats to authenticated;
+```
+
+### 13.6 Partitioning & retention
+
+`conversation` gets monthly `RANGE (started_at)` partitions via `pg_partman` (premake 3), exactly like
+`gps_breadcrumb` (§11). Retention tracks doc 17 §3.5: transcripts are org-configured, **≤ 90 days**
+default; we set the 90-day ceiling here and the nightly job applies any shorter per-org window (doc 21
+§2.4). `conversation_analysis` tracks its transcript and is deleted with it by that same job. Erasure
+is independent of partition drop: destroying the rep's DEK crypto-shreds every transcript + analysis
+ciphertext in O(1), backups included (doc 17 §3.6).
+
+```sql
+select partman.create_parent(
+  p_parent_table := 'public.conversation',
+  p_control := 'started_at', p_type := 'range', p_interval := '1 month', p_premake := 3);
+
+update partman.part_config
+  set retention = '90 days', retention_keep_table = false
+  where parent_table = 'public.conversation';
+```

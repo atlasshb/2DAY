@@ -558,3 +558,100 @@ Top-anchored strip, present across all 5 tabs when relevant — distinct from th
 - All three use `warn` #F59E0B text on a low-opacity warn background — never `danger` #EF4444 red, reserved for things actually broken (`05` §8). 13.1: map, doors, and on-device L3 re-ordering all keep working; informational, not blocking — no modal, no retry, it persists until connectivity returns.
 - 13.2: shown for the few seconds a queued batch flushes after reconnecting, then disappears on its own. 13.3: appears only for a live-only layer (rain radar, transit position) whose last frame is aging — the rest of the app is unaffected.
 - Touch target: none of the three strips are tappable in the MVP — status, not a screen.
+
+## 14. Doorstep recording — record sheet and analysis card
+
+Ground-truthed against the shipped feature, not a prototype mock: `app/src/components/coach/CoachRecorder.tsx` owns the flow, `RecordSheet.tsx` / `ConsentChip.tsx` render the sheet below, `AnalysisCard.tsx` renders the card — the doorstep conversation coach specified in `21-conversation-intelligence.md`. `CoachRecorder` mounts a **Record** pill on the Log screen between the address bar and the outcome buttons (`app/src/app/log/page.tsx`; `05` §3.4). Tapping it opens 14.1; the instant a recording (or a picked sample) is analyzed, 14.1 is replaced **in place** by 14.2 — same portal, same backdrop, no second sheet stacked on top. Both stay at **D1** off Log's D0 (`05` §3.4's depth check) — nothing in this flow is D2.
+
+### 14.1 Record sheet
+
+`RecordSheet.tsx` has three phases sharing one sheet: **setup** (consent chip + a big `( ● Rec )` start button — same circular geometry as Stop below, not separately diagrammed), **live** (drawn here), and **samples** (the always-available fallback, reached via the link or automatically when the mic/speech-recognition isn't supported, or a live take catches no speech). Consent defaults to **Notes only** — the rep's own recap voice memo — and can be swapped to **Resident informed** any time before Stop; the chip disables mid-recording so consent can't change once capture has started.
+
+```
+┌──────────────────────────────────────┐
+│                  ――                  │
+│ Record conversation              (✕) │
+├──────────────────────────────────────┤
+│ [ Notes only (my voice)  ⇄ ]         │
+│ Resident informed captures both      │
+│ voices; notes only is your own recap │
+│ after the door.  privacy             │
+├──────────────────────────────────────┤
+│                                      │
+│             ● RECORDING              │
+│                                      │
+│                02:14                 │
+│                                      │
+│              ( ■ Stop )              │
+│                                      │
+├──────────────────────────────────────┤
+│  Use a sample conversation instead   │
+│ · · · 3 samples: label + hint · · ·  │
+└──────────────────────────────────────┘
+```
+
+- **Touch targets:** close `(✕)` is a 48×48 px circle (`.recclose`); the consent chip is a 48 px-tall pill (`.consentchip`) that stays tappable (to re-read the copy) even once recording starts, only its swap action disables; **Stop is the largest control in the flow at 76×76 px** (`.stopbtn`) — well past the ≥64 px floor a precision tap deserves under real doorstep conditions (rain, gloves, walking away from the door); the sample rows and the "Use a sample" link are each ≥48 px tall (`.samplerow`, `.sampleslink`).
+- **Thumb zone:** Stop sits centered in the sheet's lower half, the same bottom-anchored reach zone as every other primary action (§2); the consent chip and its privacy toggle sit higher, in the two-hand-tolerant zone, because they're read once per conversation, not tapped mid-stride.
+- **Sunlight mode:** the live dot and timer use `danger` #EF4444 — recording is treated as an active, slightly urgent state, matching the Record pill's own red (`.recpill`); Stop's fill is `danger` while recording and swaps to `accent` #3B82F6 only in its pre-recording `( ● Rec )` state (`.stopbtn.start`) — red reads "stop me," blue reads "start me." The consent chip is neutral `chipbg` until swapped to Resident informed, which tints `accent` — the only color-coded state on this sheet.
+- **Motion:** sheet rises **280 ms** translate (§2), identical to every other sheet in the app; the recording dot pulses on a calm 1.2 s loop (`@keyframes pulse`) — deliberately slow, not alarming, since this is a normal working state, not an error.
+- **Privacy copy line** (revealed by tapping "privacy" under the consent chip, `ConsentChip.tsx`, verbatim): *"Audio never leaves this phone and is deleted the moment it's transcribed — only the text transcript and analysis sync."* — the doc 21 §2 posture, one tap away on the sheet itself rather than buried in Settings.
+
+### 14.2 Analysis card
+
+Renders once `deterministicAnalyzer.analyze()` resolves (`packages/core/src/coach/deterministic.ts`, doc 21 §5.1) — same sheet chrome as 14.1 but full-height (`.recsheet.full`, top 32 px, internally scrollable) since it's a stack of cards, not one control. Every card below is **conditionally rendered** — What went well / Improve / Objections only appear if the analyzer actually found something to say, so a plain "no answer" doesn't produce an empty shell of headers. The example below composites every card the component can render in one pass, to document its full vocabulary — no single canned sample transcript in `app/src/lib/transcripts.ts` triggers all of them at once. For the record, the three shipped samples' real (verified) output: **NL sale** — 77% confidence, 66% talk ratio, one *handled* price objection, no improvement tips; **NL not-interested** — 91% confidence, one *unhandled* "no time" objection, one objection-handling tip; **EN follow-up** — 91% confidence, `nextStep` "Come back after 7", and (because the rep's UI language is `nl` while this sample is detected `en`) a `translatedSummary` line, not drawn here (`AnalysisCard.tsx` renders it in italic directly under the summary).
+
+```
+┌──────────────────────────────────────┐
+│                  ――                  │
+│ [ Follow-up  86% ]            [ NL ] │
+├──────────────────────────────────────┤
+│ Uitkomst: vervolgafspraak (86%       │
+│ zekerheid). 2 bezwaar/bezwaren, 1    │
+│ behandeld. U sprak 58% van de tijd en│
+│ stelde 3 vragen. Vervolgstap:        │
+│ Terugkomen na 19:00 — mijn vrouw     │
+│ beslist.                             │
+├──────────────────────────────────────┤
+│ WHAT WENT WELL                       │
+│ - Bezwaar over prijs goed weerlegd.  │
+│ - Mooi in balans — u sprak 58% van de│
+│ tijd en luisterde net zoveel.        │
+├──────────────────────────────────────┤
+│ IMPROVE                              │
+│ [Opening]                            │
+│ De opening duurde ~28s als monoloog —│
+│ houd het kort en stel snel een vraag.│
+│ [Objections]                         │
+│ Het bezwaar "beslisser" bleef        │
+│ onbeantwoord — oefen een             │
+│ geruststellend weerwoord.            │
+├──────────────────────────────────────┤
+│ OBJECTIONS                           │
+│ [Price]                              │
+│ "Het klinkt allemaal duur, ik wil    │
+│ niet ineens meer gaan betalen."    ✓ │
+│ [Not decision-maker]                 │
+│ "Mijn vrouw beslist eigenlijk over   │
+│ dit soort dingen."                 ✗ │
+├──────────────────────────────────────┤
+│ TALK RATIO                           │
+│ [====================...............]│
+│ Rep 58% ✓ healthy range Resident 42% │
+│ 3 questions asked                    │
+├──────────────────────────────────────┤
+│ NEXT STEP                            │
+│ Terugkomen na 19:00 — mijn vrouw     │
+│ beslist                              │
+├──────────────────────────────────────┤
+│                                      │
+│         [ Log as Follow-up ]         │
+│             [ Dismiss ]              │
+└──────────────────────────────────────┘
+```
+
+- Note on labels: "Objections" appears twice by design and both are load-bearing — as an **Improve** area chip (`AREA_LABEL.objection_handling`, a coaching tip about how an objection was handled) and as the **Objections** card title (the raw list of objections detected, each with its verbatim quote). `AnalysisCard.tsx` uses both names as shipped; this diagram keeps them distinct exactly as coded.
+- **Touch targets:** "Log as {outcome}" is the tall primary, ~50 px (`.primary`, 15 px vertical padding) — same button family as "Accept · download Day Pack" (§4.5) and the Log tab's own outcome buttons (§6); "Dismiss" is a `.ghost` secondary with an explicit `min-height: 48px` in the component itself, not just the class default — a deliberate belt-and-braces touch-target floor. Both sit in `.reccardfoot`, pinned to the bottom of the sheet regardless of how tall the card stack above scrolls.
+- **Thumb zone:** the footer is bottom-anchored like every other primary-action footer in the app (§2); the scrollable card stack above it is read, not tapped, except for the "privacy"-style toggles this screen doesn't have — everything actionable lives in the footer.
+- **Sunlight mode:** the outcome chip keeps its outcome-palette fill (`00-design-decisions.md` §8: sale #22C55E, conversation #3B82F6, not-interested #F59E0B, follow-up #A855F7) with white text in both modes — the same rule the Log tab's 7 buttons follow (§6.1). The ✓/✗ handled glyphs (`--ok` / `--danger`) are never the only signal — the glyph shape itself carries the meaning, the same color-blind-safe rule the EV queue bars use (§5.2).
+- **Motion:** the sheet's own 280 ms rise (§2) is the only motion — card contents appear fully formed, not streamed or faded in, because the deterministic analyzer returns a complete result synchronously; contrast the daily review's Coach copy, which does fade in because it waits on a live Sonnet call (§10).
+- **Privacy:** everything on this card is built from the **transcript only** — never audio, which is already deleted by the time this card exists (doc 21 §2.1). Tapping "Log as {outcome}" writes only the 1-tap outcome, exactly like the Log tab's own buttons; the transcript and this analysis sync separately, under the org's retention policy (doc 21 §2.3–2.4), never as part of the logged `visit` event itself.

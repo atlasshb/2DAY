@@ -3,45 +3,86 @@
 </p>
 
 <p align="center">
-  <img alt="Design spec" src="https://img.shields.io/badge/design_spec-20%2F20_docs-3B82F6">
-  <img alt="Prototype" src="https://img.shields.io/badge/prototype-interactive_PWA_concept-22C55E">
-  <img alt="Market" src="https://img.shields.io/badge/market-NL_%E2%86%92_EU-F59E0B">
-  <img alt="Posture" src="https://img.shields.io/badge/offline-first_%C2%B7_GDPR-8FA0B3">
+  <img alt="App" src="https://img.shields.io/badge/app-Next.js_15_PWA-3B82F6">
+  <img alt="Planner" src="https://img.shields.io/badge/planner-L1·L2·L3_engine-22C55E">
+  <img alt="Coach" src="https://img.shields.io/badge/coach-doorstep_AI-A855F7">
+  <img alt="Tested" src="https://img.shields.io/badge/tested-unit_%2B_E2E_journeys-F59E0B">
 </p>
 
-**2DAY** compiles a door-to-door sales rep's real constraints — current location, end
-destination, work hours, train times, bag size, gym membership, sales history, walking and
-neighborhood preferences — into the most efficient possible sales day, then keeps re-optimizing
-it live as rain rolls in, trains delay, and doors get knocked.
-
-Not a CRM. Not a navigation app. A **real-time field optimization platform** whose unit of
-output is a *productive conversation*: plan in 30 seconds, drop the bag at a Basic-Fit near the
-station, walk loops that never backtrack, log every door in one tap, and always catch the right
-train home.
+**2DAY** compiles a door-to-door sales rep's real constraints — location, end destination, work
+hours, train times, bag, gym membership, sales history, preferences — into the most efficient
+possible sales day, re-optimizes it live, and now **coaches the rep at the door**: record a
+conversation and get the outcome, the objections, and what to improve — instantly, in any
+language, without the audio ever leaving the phone.
 
 ---
 
-## The product, in eight screens
+## The working product
 
-Captured from the interactive prototype in this repo (`prototype/index.html`) — open it on a
-phone or at a ~400 px viewport and click through the whole day yourself.
+This is a running monorepo, not a spec. Screenshots below are captured from the **production
+build** of the real app (`assets/screens-app/`):
 
-| Today — the instrument panel | Rain nudge, 22 min out | Plan — a compiled day | Route — live loop + train nudge |
+| Today | Plan → compiled | Route | Log |
 |---|---|---|---|
-| ![Today dashboard, night mode](assets/screens/01-today-night.png) | ![Rain re-plan nudge](assets/screens/02-today-rain-nudge.png) | ![Compiled plan with legs and expected value](assets/screens/03-plan-compiled.png) | ![Route map with walking loop and leave-by-train nudge](assets/screens/04-route-train-nudge.png) |
+| ![Today](assets/screens-app/01-today.png) | ![Plan](assets/screens-app/02-plan-compiled.png) | ![Route](assets/screens-app/03-route.png) | ![Log](assets/screens-app/04-log.png) |
 
-| Street queue, EV-ranked | Log — one tap per door | Stats — review + coach | Sunlight mode |
+| Record at the door | Instant analysis | Stats & coach | Sunlight mode |
 |---|---|---|---|
-| ![Street queue with door counts](assets/screens/05-route-street-queue.png) | ![One-tap outcome logging with undo](assets/screens/06-log-one-tap.png) | ![Daily review with coach improvements](assets/screens/07-stats-review.png) | ![High-contrast sunlight mode](assets/screens/08-today-sun.png) |
+| ![Record](assets/screens-app/05-record-sheet.png) | ![Analysis](assets/screens-app/06-analysis-card.png) | ![Stats](assets/screens-app/07-stats.png) | ![Sun](assets/screens-app/08-today-sun.png) |
 
-Design system: **Fieldkit** — dark-first "Night", AAA-contrast "Sun" for direct sunlight, one
-outcome color code used identically across log buttons, map dots, heat layers and charts.
-Full rationale in [doc 07](docs/07-ui-concepts.md).
+```bash
+npm install
+npm run test          # unit suites: core (EV model, field brain, sync, coach) + planner
+npm run test:e2e      # Playwright journey suite — the 13 user stories in e2e/user-stories.md
+npm run dev:app       # the five-tab PWA on :3000
+npm run dev:planner   # the planning API on :8787
+```
+
+Compile a real day against the planner:
+
+```bash
+curl -s localhost:8787/v1/plans/compile -H 'content-type: application/json' -d @- <<'EOF'
+{ "idempotencyKey":"01J0000000000000000000AAAA", "orgId":"01J0000000000000000000AAAB",
+  "repId":"01J0000000000000000000AAAC", "campaignId":"01J0000000000000000000AAAD",
+  "goalPreset":"max_sales",
+  "location":{"kind":"address","point":{"lat":51.7208,"lng":5.3155},"label":"Maaspoort, Den Bosch"},
+  "destination":{"kind":"station","point":{"lat":51.5606,"lng":5.0837},"label":"Tilburg"},
+  "hours":{"startAt":"2026-07-18T12:00:00+02:00","endAt":"2026-07-18T18:00:00+02:00"},
+  "transportModes":["walk","train"], "memberships":[{"chain":"basic_fit"}],
+  "bag":{"size":"standard","canCarryAllDay":false},
+  "preferences":{"incomePreference":0.5,"apartmentPreference":-0.6} }
+EOF
+```
+
+→ 8 feasible legs: walk → Sprinter → Basic-Fit bag drop → canvass loops → bag pickup → IC home,
+with expected conversations/revenue and 2 alternatives.
+
+## Doorstep conversation intelligence
+
+Tap **Record** on the Log screen, choose your consent state, talk. The moment you stop:
+
+- **Outcome** classified (sale / not interested / follow-up / conversation) with confidence
+- **Objections** with the resident's verbatim words — and whether you handled them
+- **Coaching**: what went well, what to improve, grounded in the actual transcript
+- **Talk ratio & questions asked** (the doorstep health metrics)
+- **Multi-language**: per-segment detection (NL/EN first); summary translated to your UI language
+- **Follow-ups** extract the concrete next step ("come back after 7 — my wife decides")
+
+**Privacy is structural, not a promise** ([doc 21](docs/21-conversation-intelligence.md)):
+transcription happens on-device, raw audio is deleted the moment a transcript exists
+(`audioRetained` is literally the type `false` on the wire), only transcripts + analysis sync,
+and "Notes only" mode records your own voice recap, never the resident. Works fully offline via
+the deterministic analyzer; the Claude coach adds nuance when online ([doc 10](docs/10-ai-architecture.md)).
+
+## Tested the way a rep uses it
+
+The Playwright suite drives the production build through the **13 user stories** in
+[`e2e/user-stories.md`](e2e/user-stories.md) — open app mid-shift, compile a day, accept, follow
+the route, one-tap log with undo, record a conversation in another language, log the analyzed
+outcome, flip to sunlight mode, install as PWA, accessibility floor (48 px targets). CI runs
+typecheck + 48 unit tests + build + the journey suite on every push.
 
 ## How it thinks
-
-Three optimization levels, each a known problem class — the LLM never computes routes
-("compiler, not oracle", [doc 10](docs/10-ai-architecture.md)):
 
 ```mermaid
 flowchart LR
@@ -49,147 +90,83 @@ flowchart LR
       A[Location - Hours - Destination<br/>Bag - Gym - History - Preferences]
     end
     A --> L1
-    subgraph engine [Planning engine]
+    subgraph engine [Planning engine — services/planner]
       L1[L1 Day Compiler<br/>score city + station + areas<br/>vs transit timetables]
       L2[L2 Orienteering Problem<br/>sequence areas + gym + lunch<br/>hard train deadline]
-      L3[L3 Rural Postman<br/>street loops, door sides,<br/>serpentine sweeps, no backtracking]
+      L3[L3 Rural Postman<br/>street loops, door sides,<br/>no backtracking]
       L1 --> L2 --> L3
     end
     L3 --> P[Compiled day plan<br/>+ 2 alternatives + explanation]
-    P --> F[Field brain on device<br/>rain - trains - pace - skip rules]
+    P --> F[Field brain on device<br/>15 rules: rain - trains - pace]
     F -->|deviation or disruption| L2
     F -->|street closed / pace change| L3
+    P -.-> C[Doorstep coach<br/>record - analyze - improve]
+    C -.->|outcomes feed EV| L1
 ```
 
-Every knock feeds an expected-value model (`P(answer) x P(conversation) x P(sale) x commission`
-with Bayesian shrinkage and 90-day decay) that makes tomorrow's plan smarter than today's —
-the data moat compounds street by street. Math and pseudocode: [doc 11](docs/11-routing-algorithms.md).
+Every knock and every analyzed conversation feeds the expected-value model (Beta shrinkage,
+90-day decay — `packages/core/src/ev.ts`), so tomorrow's plan is smarter than today's.
 
 ## System architecture
 
 ```mermaid
 flowchart TB
     subgraph device [Phone - PWA, offline-first]
-      UI[Next.js 15 PWA<br/>MapLibre GL + PMTiles]
-      DX[Dexie store + append-only outbox]
-      FB[Field brain rules engine]
-      UI --- DX --- FB
+      UI[Next.js 15 app - five tabs]
+      DX[Dexie outbox - append-only sync]
+      FB[Field brain + deterministic coach]
+    end
+    subgraph compute [Planner service - Fastify]
+      PL[L1 L2 L3 pipeline + conversation analysis]
+      VA[Valhalla seam]
+      VR[VROOM seam]
+      OTP[OTP2 seam - OVapi GTFS]
     end
     subgraph platform [Supabase EU]
-      PG[(Postgres 16 + PostGIS + H3<br/>RLS multi-tenant)]
-      AUTH[Auth + Realtime + Storage]
+      PG[(Postgres + PostGIS + H3, RLS)]
     end
-    subgraph compute [Planner service - Fly.io]
-      PL[Fastify planner API<br/>L1 L2 L3 orchestration]
-      VA[Valhalla<br/>walking matrices + isochrones]
-      VR[VROOM<br/>orienteering solver]
-      OTP[OpenTripPlanner 2<br/>OVapi GTFS + GTFS-RT]
-    end
-    subgraph data [NL open data ingestion]
-      ING[BAG - CBS - EP-Online - OSM - KNMI]
-    end
-    AI[Claude API<br/>intent parse - plan explain - coach]
-    device <-->|sync + Day Packs| platform
-    device -->|plan requests| PL
+    AI[Claude API - explain, coach]
+    device <-->|Day Packs + event sync| platform
+    device -->|compile / replan / analyze| PL
     PL --> VA & VR & OTP
     PL --> AI
-    ING --> PG
     PL <--> PG
 ```
 
-Full service topology, endpoint catalog and typed `PlanRequest`: [doc 09](docs/09-api-architecture.md).
-
-## A compiled day (the hero scenario)
-
-> Rep in **Maaspoort, Den Bosch** · must end in **Tilburg** · works **12:00–18:00** · train +
-> backpack + Basic-Fit · normal pace · middle-income areas · goal: **max sales**
-
-| | | |
-|---|---|---|
-| 12:04 | 🚶 | Walk to Den Bosch Centraal — 11 min |
-| 12:19 | 🚆 | Sprinter → Tilburg — 27 min, 0 changes |
-| 12:46 | 🏋️ | Basic-Fit Spoorlaan — lockers free, **bag drop** |
-| 13:05 | 🚪 | Loop A · Groenewoud-West — 62 doors, both sides serpentine |
-| 14:25 | 🚪 | Loop B · Groenewoud-Oost — 58 doors |
-| 15:40 | ☕ | Coffee on route — Anne&Max |
-| 16:00 | 🚪 | Loop C · Stappegoor-Noord — 54 doors |
-| 17:45 | 🚆 | Bag pickup → **IC 18:02**, home 18:29 |
-
-~210 doors · ~34 conversations · ~6 expected sales · 9.8 km — and when the rain nowcast says
-22 minutes, the loops reorder themselves. Step-by-step walkthrough: [doc 03](docs/03-user-journeys.md).
+The routing adapters are deterministic mocks today, shaped exactly like the real services
+(Valhalla / VROOM / OpenTripPlanner 2) they swap for — see
+[doc 09](docs/09-api-architecture.md) and [doc 13](docs/13-public-transport-integration.md).
 
 ## Built on open source
 
-2DAY deliberately assembles proven open-source components instead of reinventing them — the
-entire routing/geo/transit stack is OSS, which is also what makes the unit economics work
-([doc 18](docs/18-cost-estimates.md)):
-
-| Component | Role in 2DAY | Source |
+| Component | Role | License |
 |---|---|---|
-| [MapLibre GL JS](https://github.com/maplibre/maplibre-gl-js) | Vector map rendering on device | BSD-3 |
-| [Protomaps / PMTiles](https://github.com/protomaps/PMTiles) | Single-file map tiles; offline Day Pack extracts | BSD-3 |
-| [Valhalla](https://github.com/valhalla/valhalla) | Pedestrian routing, time matrices, isochrones | MIT |
-| [VROOM](https://github.com/VROOM-Project/vroom) | Vehicle-routing/orienteering solver behind L2 | BSD-2 |
-| [OpenTripPlanner 2](https://github.com/opentripplanner/OpenTripPlanner) | Multimodal transit planning over GTFS | LGPL |
-| [H3](https://github.com/uber/h3) | Hexagonal spatial index for density/EV scoring | Apache-2.0 |
-| [PostGIS](https://github.com/postgis/postgis) | Spatial truth in Postgres | GPL-2 |
-| [Supabase](https://github.com/supabase/supabase) | Auth, Postgres platform, Realtime, RLS | Apache-2.0 |
-| [Dexie.js](https://github.com/dexie/Dexie.js) | IndexedDB store for the offline-first client | Apache-2.0 |
-| [Turf.js](https://github.com/Turfjs/turf) | Client-side geometry ops | MIT |
-| [Workbox](https://github.com/GoogleChrome/workbox) | Service-worker caching strategies | MIT |
-| [Fastify](https://github.com/fastify/fastify) | Planner service HTTP layer | MIT |
-| [Next.js](https://github.com/vercel/next.js) | App framework, PWA delivery | MIT |
-| [OpenStreetMap](https://www.openstreetmap.org) via [osmium](https://github.com/osmcode/osmium-tool) | Street network + walking graph builds | ODbL |
+| [Next.js](https://github.com/vercel/next.js) · [React](https://github.com/facebook/react) | App framework, PWA | MIT |
+| [MapLibre GL JS](https://github.com/maplibre/maplibre-gl-js) + [PMTiles](https://github.com/protomaps/PMTiles) | Maps + offline tile packs | BSD-3 |
+| [Valhalla](https://github.com/valhalla/valhalla) | Walking matrices, isochrones | MIT |
+| [VROOM](https://github.com/VROOM-Project/vroom) | Route optimization (L2) | BSD-2 |
+| [OpenTripPlanner 2](https://github.com/opentripplanner/OpenTripPlanner) | Dutch transit over OVapi GTFS | LGPL |
+| [H3](https://github.com/uber/h3) · [PostGIS](https://github.com/postgis/postgis) | Spatial index + truth | Apache-2 / GPL-2 |
+| [Supabase](https://github.com/supabase/supabase) | Auth, Postgres, Realtime, RLS | Apache-2 |
+| [Dexie.js](https://github.com/dexie/Dexie.js) · [Workbox](https://github.com/GoogleChrome/workbox) | Offline store + SW caching | Apache-2 / MIT |
+| [Fastify](https://github.com/fastify/fastify) · [zod](https://github.com/colinhacks/zod) · [Turf.js](https://github.com/Turfjs/turf) | API, validation, geometry | MIT |
+| [Playwright](https://github.com/microsoft/playwright) · [Vitest](https://github.com/vitest-dev/vitest) | Journey + unit testing | Apache-2 / MIT |
 
-## Fueled by Dutch open data
+Plus Dutch open data: **BAG** (every address), **CBS** (demographics), **EP-Online** (energy
+labels), **OVapi** (all transit operators, realtime), **KNMI/Buienradar** (rain nowcast),
+**PDOK** (geocoding) — pipelines in [doc 12](docs/12-gis-strategy.md).
 
-| Data | Source | Feeds |
-|---|---|---|
-| Every address, building, construction year | **BAG** (Kadaster, via PDOK) | Door counts, door-side modeling, dwelling type |
-| Income, ownership, age, density per buurt | **CBS Wijken & Buurten** | Area scoring, income targeting |
-| Energy labels per address | **EP-Online** (RVO) | Energy/solar campaign fit |
-| All operators' timetables + realtime | **OVapi** (GTFS + GTFS-RT) | Train home, disruptions, L1 commute math |
-| 5-minute rain nowcast | **KNMI / Buienradar** | "Rain starts in 22 min" re-planning |
-| Geocoding | **PDOK Locatieserver** | Free, BAG-backed, Dutch-native |
+## The design package behind it
 
-Ingestion pipelines and refresh cadence: [doc 12](docs/12-gis-strategy.md).
-
-## Design documentation — the full spec
-
-Start at **[00 · Design decisions](docs/00-design-decisions.md)**, the canonical brief every
-other document elaborates.
+The product is built against a complete venture-grade spec — start at
+**[docs/00-design-decisions.md](docs/00-design-decisions.md)**:
 
 | Product | Engineering | Business |
 |---|---|---|
-| [01 · Product vision](docs/01-product-vision.md) | [08 · Database schema](docs/08-database-schema.md) | [18 · Cost estimates](docs/18-cost-estimates.md) |
-| [02 · User personas](docs/02-user-personas.md) | [09 · API architecture](docs/09-api-architecture.md) | [19 · Monetization](docs/19-monetization.md) |
-| [03 · User journeys](docs/03-user-journeys.md) | [10 · AI architecture](docs/10-ai-architecture.md) | [20 · Roadmap](docs/20-roadmap.md) |
-| [04 · Feature prioritization](docs/04-feature-prioritization.md) | [11 · Routing algorithms](docs/11-routing-algorithms.md) | |
-| [05 · Information architecture](docs/05-information-architecture.md) | [12 · GIS strategy](docs/12-gis-strategy.md) | |
-| [06 · Mobile wireframes](docs/06-mobile-wireframes.md) | [13 · Public transport integration](docs/13-public-transport-integration.md) | |
-| [07 · High-fidelity UI concepts](docs/07-ui-concepts.md) | [14 · Data model](docs/14-data-model.md) | |
-| | [15 · Offline synchronization](docs/15-offline-sync.md) | |
-| | [16 · Scalability plan](docs/16-scalability.md) | |
-| | [17 · Security model](docs/17-security-model.md) | |
+| [01 Vision](docs/01-product-vision.md) · [02 Personas](docs/02-user-personas.md) · [03 Journeys](docs/03-user-journeys.md) · [04 Prioritization](docs/04-feature-prioritization.md) · [05 IA](docs/05-information-architecture.md) · [06 Wireframes](docs/06-mobile-wireframes.md) · [07 UI](docs/07-ui-concepts.md) | [08 Database](docs/08-database-schema.md) · [09 API](docs/09-api-architecture.md) · [10 AI](docs/10-ai-architecture.md) · [11 Routing](docs/11-routing-algorithms.md) · [12 GIS](docs/12-gis-strategy.md) · [13 Transit](docs/13-public-transport-integration.md) · [14 Data model](docs/14-data-model.md) · [15 Offline sync](docs/15-offline-sync.md) · [16 Scalability](docs/16-scalability.md) · [17 Security](docs/17-security-model.md) · [21 Conversation intelligence](docs/21-conversation-intelligence.md) | [18 Costs](docs/18-cost-estimates.md) · [19 Monetization](docs/19-monetization.md) · [20 Roadmap](docs/20-roadmap.md) |
 
-## Run the prototype
+The original interactive design prototype lives in [`prototype/index.html`](prototype/index.html)
+(design-reference screenshots in `assets/screens/`); the database DDL assembled from doc 08 is in
+[`supabase/migrations/`](supabase/migrations/).
 
-```bash
-# no build, no dependencies, no API keys
-open prototype/index.html        # macOS
-xdg-open prototype/index.html    # Linux
-```
-
-Everything is inline (CSS, JS, stylized SVG map) so it runs from a `file://` URL, in CI, or on
-a phone. The screenshots above were captured headlessly with Playwright driving the prototype
-through its real interactions (tab switches, plan compilation, nudges, one-tap logging).
-
-## Status
-
-This repository is the **complete venture-grade design package** for 2DAY: product vision →
-personas → journeys → IA → wireframes → hi-fi prototype → database DDL → API types → routing
-math → offline sync protocol → security/GDPR model → costs → monetization → 24-month roadmap.
-The next artifact is code: the MVP sprint plan in [doc 20](docs/20-roadmap.md) starts with BAG/CBS
-ingestion and the Valhalla/VROOM/OTP2 bring-up, beta in Noord-Brabant.
-
-<p align="center"><sub>Fieldkit design system · Night &amp; Sun themes · Built for one thumb, in sunlight, offline.</sub></p>
+<p align="center"><sub>Fieldkit design system · Night &amp; Sun · one thumb, in sunlight, offline · audio never leaves the phone</sub></p>

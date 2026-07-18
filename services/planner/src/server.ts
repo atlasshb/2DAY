@@ -29,6 +29,7 @@ import { replan } from "./pipeline/replan.js";
 import { discoverAreas } from "./pipeline/discover.js";
 import { InfeasiblePlanError } from "./pipeline/l1.js";
 import { errorBody, zodErrorBody } from "./errors.js";
+import { registerConversationRoutes } from "./conversations.js";
 import { formatIso, parseOffset } from "./util/time.js";
 
 export interface BuildServerOptions {
@@ -134,6 +135,10 @@ export function buildServer(options: BuildServerOptions = {}): FastifyInstance {
     const result = await discoverAreas(parsed.data, { transit }, generatedAt);
     return reply.code(200).send(result);
   });
+
+  // --- POST /v1/conversations/analyze --------------------------------------
+  // Conversation intelligence (docs/21): deterministic offline coach.
+  registerConversationRoutes(app);
 
   // --- fallback error envelope ---------------------------------------------
   app.setErrorHandler((err: FastifyError, _request, reply) => {
