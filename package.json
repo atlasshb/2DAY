@@ -1,0 +1,22 @@
+{
+  "name": "2day",
+  "private": true,
+  "workspaces": [
+    "packages/core",
+    "services/planner",
+    "app"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "dev:app": "npm run dev -w @2day/app",
+    "dev:planner": "npm run dev -w @2day/planner"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
