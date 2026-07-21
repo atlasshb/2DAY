@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
 
+export const dynamic = "force-static";
+
 /** A single inline 512×512 SVG icon — accent-blue "2DAY" mark on the Fieldkit
  *  night background, avoids shipping a binary asset for the prototype port. */
 const ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">

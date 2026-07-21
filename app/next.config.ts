@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "export",
   transpilePackages: ["@2day/core"],
   webpack: (config) => {
     // @2day/core is consumed as raw TS with NodeNext-style ".js" specifiers;
