@@ -15,6 +15,8 @@ day, re-optimizes it live, and coaches the rep at the door: record a conversatio
 outcome, the objections, and what to improve, instantly, in any language, without the audio ever
 leaving the phone.
 
+**Live demo:** [2day.atlascorporation.org](https://2day.atlascorporation.org)
+
 Built for any team that sells door to door or in the field: energy contracts, IT services, air
 conditioning, solar panels, telecom, charity fundraising, or anything else that gets sold one
 doorstep at a time. The demo data you'll see running today happens to be a Dutch energy sales
