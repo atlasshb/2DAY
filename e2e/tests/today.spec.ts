@@ -1,15 +1,19 @@
 import { test, expect } from "@playwright/test";
+import { enterDemoMode } from "./helpers";
 
 /**
  * US-01, US-05 — e2e/user-stories.md
  * "I open the app mid-shift and see my day at a glance" + the rain/train
  * nudge that surfaces without burying the screen.
+ *
+ * This is the demo fixture specifically — a fresh (non-demo) Today tab shows
+ * the Day Setup wizard prompt instead (WIZARD-BRIEF), covered in wizard.spec.ts.
  */
 
 test("US-01: Today shows doors, convos, sales, earnings, work-hours progress, weather, and train home at a glance", async ({
   page,
 }) => {
-  await page.goto("/");
+  await enterDemoMode(page);
 
   // Location + weather
   await expect(page.locator(".loc")).toHaveText("Tilburg · Groenewoud");
@@ -44,7 +48,7 @@ test("US-01: Today shows doors, convos, sales, earnings, work-hours progress, we
 });
 
 test("US-05: the rain nudge appears without burying the screen and can be acted on", async ({ page }) => {
-  await page.goto("/");
+  await enterDemoMode(page);
 
   // Not present at first paint (NudgeBanner renders null until the store's
   // nudge state is populated by its ~5s setTimeout).

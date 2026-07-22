@@ -1,16 +1,15 @@
-import { Timeline } from "@/components/stats/Timeline";
-import { NeighborhoodTable } from "@/components/stats/NeighborhoodTable";
-import { CoachCard } from "@/components/stats/CoachCard";
-import { StreakRecords } from "@/components/stats/StreakRecords";
+"use client";
+
+import { useDemoMode } from "@/lib/dayProfile";
+import { StatsDemo } from "@/components/stats/StatsDemo";
+import { StatsLive } from "@/components/stats/StatsLive";
 
 export default function StatsPage() {
+  const demo = useDemoMode();
   return (
     <section className="screen" aria-label="Stats">
       <div className="h1">Today&apos;s review</div>
-      <Timeline />
-      <NeighborhoodTable />
-      <CoachCard />
-      <StreakRecords />
+      {demo ? <StatsDemo /> : <StatsLive />}
     </section>
   );
 }

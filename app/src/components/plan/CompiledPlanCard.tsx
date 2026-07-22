@@ -1,20 +1,7 @@
-import type { CanvassLegDetail, Plan, PlanLeg, TransitLegDetail } from "@2day/core";
+import type { CanvassLegDetail, Plan } from "@2day/core";
 import type { PlanSource } from "@/lib/api";
 import { compiledPlanStats, planLegRows, SALE_VALUE_EUR, type PlanLegRow } from "@/lib/mock";
-
-const KIND_ICON: Record<PlanLeg["kind"], string> = {
-  walk: "🚶",
-  transit: "🚆",
-  gym: "🏋️",
-  canvass: "🚪",
-  break: "☕",
-};
-
-/** HH:MM off the leg's ISO start — reads the wall-clock in the offset-tagged
- *  timestamp directly, no timezone math. */
-function hhmm(iso: string): string {
-  return iso.slice(11, 16);
-}
+import { legRow } from "@/lib/legDisplay";
 
 interface CardStats {
   doors: number;
@@ -25,8 +12,10 @@ interface CardStats {
 
 /** Map a server Plan's score/legs onto the four EV pills. Best-effort: doors and
  *  sales aren't first-class on Plan, so doors sums the canvass legs and sales is
- *  derived from expected revenue. Only used on the (untested) planner path — the
- *  local fallback keeps the exact demo figures below. */
+ *  derived from expected revenue. Only meaningful when a scoring model actually
+ *  produced non-zero expectations (the demo/planner path) — a real wizard-built
+ *  plan has no scoring model, so its score is honestly all zeros and the card
+ *  skips this row entirely (see `CompiledPlanCard` below). */
 function serverStats(plan: Plan): CardStats {
   const doors = plan.legs.reduce(
     (n, l) => n + (l.kind === "canvass" ? (l.detail as CanvassLegDetail).doorCount : 0),
@@ -40,43 +29,49 @@ function serverStats(plan: Plan): CardStats {
   };
 }
 
-/** Map a server Plan's legs onto the presentational leg rows. */
+/** Map a Plan's legs onto the presentational leg rows (shared with Today/Route
+ *  for real, wizard-built plans — see lib/legDisplay.ts). */
 function serverLegRows(plan: Plan): PlanLegRow[] {
-  return plan.legs.map((leg) => {
-    let text: string;
-    switch (leg.kind) {
-      case "transit": {
-        const d = leg.detail as TransitLegDetail;
-        text = `${d.routeShortName} → ${leg.toLabel}`;
-        break;
-      }
-      case "canvass": {
-        const d = leg.detail as CanvassLegDetail;
-        text = `${leg.toLabel} · ${d.doorCount} doors`;
-        break;
-      }
-      case "gym":
-        text = `${leg.toLabel} · bag drop`;
-        break;
-      case "break":
-        text = `Coffee · ${leg.toLabel}`;
-        break;
-      default:
-        text = `Walk to ${leg.toLabel}`;
-    }
-    return { time: hhmm(leg.startAt), icon: KIND_ICON[leg.kind], text };
-  });
+  return plan.legs.map(legRow);
 }
 
-export function CompiledPlanCard({ plan, source }: { plan: Plan; source: PlanSource }) {
+/**
+ * `demo` distinguishes the Plan tab's two very different "local" plans:
+ * the fixed demo fixture (`demo=true`, source is always "local" since no
+ * planner runs in this repo) vs. a real plan built from the Day Setup
+ * wizard's answers (`demo=false`) — which has no scoring model, so its EV
+ * row is skipped in favor of a plain, honest summary line.
+ */
+export function CompiledPlanCard({
+  plan,
+  source,
+  demo = true,
+  areaLabel,
+}: {
+  plan: Plan;
+  source: PlanSource;
+  demo?: boolean;
+  areaLabel?: string;
+}) {
   const local = source !== "planner";
-  const stats: CardStats = local ? compiledPlanStats : serverStats(plan);
-  const rows: PlanLegRow[] = local ? planLegRows : serverLegRows(plan);
+  const useFixture = local && demo;
+  const stats: CardStats = useFixture ? compiledPlanStats : serverStats(plan);
+  const rows: PlanLegRow[] = useFixture ? planLegRows : serverLegRows(plan);
+  // The demo fixture is always "Tilburg" (its one fixed scenario); real
+  // plans pass their own work-area label explicitly.
+  const resolvedAreaLabel = areaLabel ?? (useFixture ? "Tilburg" : undefined);
+  const totalMinutes = plan.legs.length
+    ? Math.round(
+        (new Date(plan.legs[plan.legs.length - 1]!.endAt).getTime() -
+          new Date(plan.legs[0]!.startAt).getTime()) /
+          60_000,
+      )
+    : 0;
 
   return (
     <div className="card" style={{ marginBottom: 12 }}>
       <div className="cardtitle">
-        Compiled plan · Tilburg
+        Compiled plan{resolvedAreaLabel ? ` · ${resolvedAreaLabel}` : ""}
         {/* Honest-staleness pill (docs 00 §2.4 / 07 §"amber dot + caption"): the
             plan was produced by the on-device fallback, not the planner. */}
         {local && (
@@ -103,14 +98,20 @@ export function CompiledPlanCard({ plan, source }: { plan: Plan; source: PlanSou
           </span>
         )}
       </div>
-      <div className="evrow">
-        <span className="pill">~{stats.doors} doors</span>
-        <span className="pill">~{stats.convos} convos</span>
-        <span className="pill" style={{ color: "var(--sale)" }}>
-          ~{stats.sales} sales
-        </span>
-        <span className="pill">{stats.km} km</span>
-      </div>
+      {useFixture ? (
+        <div className="evrow">
+          <span className="pill">~{stats.doors} doors</span>
+          <span className="pill">~{stats.convos} convos</span>
+          <span className="pill" style={{ color: "var(--sale)" }}>
+            ~{stats.sales} sales
+          </span>
+          <span className="pill">{stats.km} km</span>
+        </div>
+      ) : (
+        <p className="sub" style={{ fontSize: 13, marginBottom: 6 }}>
+          {rows.length} stop{rows.length === 1 ? "" : "s"} · {totalMinutes} min planned
+        </p>
+      )}
       {rows.map((row) => (
         <div key={row.time + row.text} className="legrow">
           <span className="t">{row.time}</span>

@@ -14,13 +14,24 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { ConversationAnalysis, NudgePriority, VisitOutcome } from "@2day/core";
+import type { ConversationAnalysis, NudgePriority, VisitEvent, VisitOutcome } from "@2day/core";
 import {
   initialDayStats,
   logStreet,
   SALE_VALUE_EUR,
   type DayStats,
 } from "./mock";
+import { useDemoMode } from "./dayProfile";
+import { enqueueVisit } from "./offline/outbox";
+import { ulid } from "./planRequest";
+
+// Stable, on-device-only identity for real (non-demo) visit events. Never
+// synced anywhere (no server to dedupe against in this repo — see doc 15),
+// so a fresh id per app load is fine; it just needs to be a well-formed ULID
+// for `visitEvent` schema validation in `enqueueVisit`.
+const LOCAL_ORG_ID = ulid();
+const LOCAL_REP_ID = ulid();
+const LOCAL_CAMPAIGN_ID = ulid();
 
 export type Mode = "night" | "sun";
 
@@ -100,6 +111,7 @@ function addrMeta(doorIdx: number, total: number): string {
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
+  const demoMode = useDemoMode();
   const [mode, setMode] = useState<Mode>("night");
   const [dayStats, setDayStats] = useState<DayStats>(initialDayStats);
   const [planAccepted, setPlanAccepted] = useState(false);
@@ -181,6 +193,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         earn: s.earn + (outcome === "sale" ? SALE_VALUE_EUR : 0),
       }));
 
+      // Real (non-demo) taps are also durably persisted to the append-only
+      // visit outbox — the "real logged visits" Today/Stats read from
+      // (WIZARD-BRIEF). Demo taps stay purely in-memory so they never
+      // pollute real history; this is fire-and-forget, never blocks the tap.
+      if (!demoMode) {
+        const event: VisitEvent = {
+          id: ulid(),
+          orgId: LOCAL_ORG_ID,
+          repId: LOCAL_REP_ID,
+          campaignId: LOCAL_CAMPAIGN_ID,
+          outcome,
+          at: new Date().toISOString(),
+          deviceSeq: 0, // enqueueVisit stamps the real monotonic value
+          saleValueEur: outcome === "sale" ? SALE_VALUE_EUR : undefined,
+        };
+        void enqueueVisit(event);
+      }
+
       if (typeof navigator !== "undefined" && "vibrate" in navigator) {
         navigator.vibrate?.(30);
       }
@@ -192,7 +222,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       goNextDoor();
     },
-    [houseNo, doorIdx, goNextDoor],
+    [houseNo, doorIdx, goNextDoor, demoMode],
   );
 
   const undoLast = useCallback(() => {

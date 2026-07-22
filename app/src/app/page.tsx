@@ -1,17 +1,10 @@
-import { Hero } from "@/components/today/Hero";
-import { StatGrid } from "@/components/today/StatGrid";
-import { RouteLegsCard } from "@/components/today/RouteLegsCard";
-import { TrainCard } from "@/components/today/TrainCard";
-import { DisruptionsCard } from "@/components/today/DisruptionsCard";
+"use client";
+
+import { useDemoMode } from "@/lib/dayProfile";
+import { TodayDemo } from "@/components/today/TodayDemo";
+import { TodayLive } from "@/components/today/TodayLive";
 
 export default function TodayPage() {
-  return (
-    <section className="screen" aria-label="Today">
-      <Hero />
-      <StatGrid />
-      <RouteLegsCard />
-      <TrainCard />
-      <DisruptionsCard />
-    </section>
-  );
+  const demo = useDemoMode();
+  return <section className="screen" aria-label="Today">{demo ? <TodayDemo /> : <TodayLive />}</section>;
 }

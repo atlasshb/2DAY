@@ -1,14 +1,19 @@
 import { test, expect } from "@playwright/test";
+import { enterDemoMode, goToTab } from "./helpers";
 
 /**
  * US-07 — e2e/user-stories.md
  * "At day's end the Stats tab shows my timeline, per-neighborhood
  * performance, coach improvements, and my streak/records."
+ *
+ * This is the demo fixture specifically — a fresh (non-demo) Stats tab shows
+ * honest empty states instead (WIZARD-BRIEF), covered in wizard.spec.ts.
  */
 test("US-07: Stats tab shows timeline, per-neighborhood performance, coach improvements, and streak/records", async ({
   page,
 }) => {
-  await page.goto("/stats");
+  await enterDemoMode(page);
+  await goToTab(page, "Stats");
   await expect(page.locator('section[aria-label="Stats"]')).toBeVisible();
 
   // Timeline.

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { goToTab, openRecordSheetToSamples, pickSample, SAMPLE } from "./helpers";
+import { enterDemoMode, goToTab, openRecordSheetToSamples, pickSample, SAMPLE } from "./helpers";
 
 /**
  * US-08, US-09, US-10 — e2e/user-stories.md
@@ -106,7 +106,10 @@ test("US-09: a conversation in a different language than the UI still classifies
 test("US-10: logging the recorded outcome from the analysis card counts exactly like a manual log", async ({
   page,
 }) => {
-  await page.goto("/log");
+  // US-10 checks Today's fixed baseline stats — that fixture only shows
+  // once demo mode is explicitly on (WIZARD-BRIEF); Log itself is unaffected.
+  await enterDemoMode(page);
+  await goToTab(page, "Log");
 
   await goToTab(page, "Today");
   await expect(page.locator(".statv").first()).toBeVisible();

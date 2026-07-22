@@ -1,16 +1,22 @@
 import { test, expect } from "@playwright/test";
+import { enterDemoMode, goToTab } from "./helpers";
 
 /**
  * US-02, US-03 — e2e/user-stories.md
  * Compiling the day in the Plan tab (inputs as chips, compile progress,
  * legged plan with EV + explanation + 2 alternatives) and accepting it to
  * land on Route with the next street + expandable street queue.
+ *
+ * This is the demo fixture specifically (WIZARD-BRIEF gates it behind an
+ * explicit "Try the demo"); the real, wizard-built compile flow is covered
+ * in wizard.spec.ts.
  */
 
 test("US-02: Plan tab shows input chips, compile progress, and a legged plan with EV, explanation, and 2 alternatives", async ({
   page,
 }) => {
-  await page.goto("/plan");
+  await enterDemoMode(page);
+  await goToTab(page, "Plan");
 
   // Inputs visible as chips before compiling.
   const chips = page.locator(".chips .pill");
@@ -49,7 +55,8 @@ test("US-02: Plan tab shows input chips, compile progress, and a legged plan wit
 test("US-03: accepting the plan lands on Route with the next street and an expandable per-street door-count queue", async ({
   page,
 }) => {
-  await page.goto("/plan");
+  await enterDemoMode(page);
+  await goToTab(page, "Plan");
   await page.getByRole("button", { name: "Compile day" }).click();
   await expect(page.locator(".card", { hasText: "Compiled plan · Tilburg" })).toBeVisible({ timeout: 5000 });
 

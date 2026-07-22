@@ -5,3 +5,4 @@ export * from "./fieldbrain/index.js";
 export * from "./sync.js";
 export * from "./conversation.js";
 export * from "./coach/index.js";
+export * from "./prayer/times.js";

@@ -10,9 +10,12 @@ export const TABS = ["Today", "Plan", "Route", "Log", "Stats"] as const;
 
 /** Click a tab-bar link by its visible label — client-side nav (no page.goto),
  *  matching the store's client-only React state (no persistence across
- *  full page loads). */
+ *  full page loads). Scoped to the tab bar itself (not just any link with a
+ *  matching accessible name) — the real (non-demo) Today/Route empty states
+ *  also link to "/plan" ("Go to Plan"), which fuzzy-matches a bare "Plan"
+ *  query. */
 export async function goToTab(page: Page, label: (typeof TABS)[number]): Promise<void> {
-  await page.getByRole("link", { name: label }).click();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: label, exact: true }).click();
 }
 
 /**
@@ -46,4 +49,18 @@ export const SAMPLE = {
 export async function pickSample(page: Page, index: number): Promise<void> {
   await page.getByTestId("sample-transcript-btn").nth(index).click();
   await expect(page.getByTestId("analysis-card")).toBeVisible({ timeout: 5000 });
+}
+
+/**
+ * Enters demo mode (WIZARD-BRIEF: fixture data only appears after this
+ * explicit choice) from a cold `/` load. Every spec that exercises the
+ * original Tilburg demo fixture — the fixed 87/14/4/€152 numbers, the
+ * canned Plan chips, the Stats fixture — starts here instead of a bare
+ * `page.goto("/")`, since a fresh profile now shows the Day Setup wizard's
+ * prompt, not fixture data.
+ */
+export async function enterDemoMode(page: Page): Promise<void> {
+  await page.goto("/");
+  await page.getByTestId("try-demo-btn").click();
+  await expect(page.getByTestId("demo-badge")).toBeVisible();
 }

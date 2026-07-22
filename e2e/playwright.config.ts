@@ -31,7 +31,15 @@ export default defineConfig({
   },
   projects: [{ name: "mobile-chromium", use: { ...devices["iPhone 13"], defaultBrowserType: "chromium" } }],
   webServer: {
-    command: "npm run start -w @2day/app -- --port 3100",
+    // `next start` refuses to run against `output: "export"` (it wants
+    // `serve out` — see static-server.mjs's header comment for why this is
+    // a small dependency-free server instead of a new npm package).
+    // Requires `npm run build -w @2day/app` to have produced `app/out/`.
+    command: "node static-server.mjs",
+    // Playwright's webServer.env REPLACES the whole environment rather than
+    // merging — omit process.env here and Windows can't even resolve
+    // cmd.exe to launch the command with.
+    env: { ...process.env, PORT: "3100" } as Record<string, string>,
     url: "http://localhost:3100",
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,

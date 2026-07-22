@@ -5,6 +5,19 @@
  * Every call has a hard timeout and a local fallback; callers always get an
  * answer plus a `source` tag so the UI can show an honest staleness badge
  * ("plan compiled offline") instead of an error state.
+ *
+ * Fixed in review: the deployed static site has no planner wired at runtime
+ * (AGENT-BRIEF — services/planner stays optional), so `NEXT_PUBLIC_PLANNER_URL`
+ * is unset in production. Previously that fell through to a hardcoded
+ * `localhost:8787` default and always attempted a real fetch, which every
+ * real user's browser refuses instantly (attempting to reach a port on the
+ * device serving the page? no — on whatever `localhost` resolves to for
+ * them, which is never the planner) — except when a slow/intercepted network
+ * path let the refusal outrun the fallback's `AbortController` timeout, so
+ * the rep or a test could be stuck on "Compiling your day…" for up to
+ * `COMPILE_TIMEOUT_MS`. When the planner URL isn't explicitly configured,
+ * skip the fetch entirely and go straight to the local fallback — instant
+ * and deterministic, same effective result the timeout eventually produced.
  */
 import type { Plan, PlanRequest } from "@2day/core";
 
@@ -15,20 +28,23 @@ export interface CompileResult {
   source: PlanSource;
 }
 
-const PLANNER_URL =
-  process.env.NEXT_PUBLIC_PLANNER_URL ?? "http://localhost:8787";
+const PLANNER_URL = process.env.NEXT_PUBLIC_PLANNER_URL;
 
 const COMPILE_TIMEOUT_MS = 6_000;
 
 /**
  * POST /v1/plans/compile with timeout; falls back to `localFallback()` on any
- * failure (network, timeout, non-2xx, invalid payload). Fallback is supplied
- * by the caller so this module stays free of mock-data imports.
+ * failure (network, timeout, non-2xx, invalid payload), or immediately if no
+ * planner URL is configured. Fallback is supplied by the caller so this
+ * module stays free of mock-data imports.
  */
 export async function compileDay(
   req: PlanRequest,
   localFallback: () => Plan,
 ): Promise<CompileResult> {
+  if (!PLANNER_URL) {
+    return { plan: localFallback(), source: "local" };
+  }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), COMPILE_TIMEOUT_MS);
   try {
@@ -57,6 +73,9 @@ export async function replanDay(
   body: unknown,
   localFallback: () => Plan,
 ): Promise<CompileResult> {
+  if (!PLANNER_URL) {
+    return { plan: localFallback(), source: "local" };
+  }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), COMPILE_TIMEOUT_MS);
   try {

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { goToTab } from "./helpers";
+import { enterDemoMode, goToTab } from "./helpers";
 
 /**
  * US-04 — e2e/user-stories.md
@@ -14,7 +14,11 @@ import { goToTab } from "./helpers";
 test("US-04: logging a door updates stats instantly, advances the address, and Undo restores everything", async ({
   page,
 }) => {
-  await page.goto("/log");
+  // The fixed 87/14/4/€152 Today baseline this test checks against only
+  // shows once demo mode is explicitly on (WIZARD-BRIEF); the address
+  // scrubber itself is unaffected by demo mode.
+  await enterDemoMode(page);
+  await goToTab(page, "Log");
 
   await expect(page.locator(".addrst")).toHaveText("Meidoornstraat 42");
   await expect(page.locator(".addrmeta")).toContainText("door 8 of 23");
